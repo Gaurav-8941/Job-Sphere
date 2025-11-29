@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HR Dashboard - Job Sphere</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <style>
+        .dashboard-card { transition: transform 0.2s; }
+        .dashboard-card:hover { transform: translateY(-5px); }
+
+        /* Added Style: Forces the specific text elements to be white */
+        .profile-dropdown .nav-link,
+        .profile-circle {
+            color: white !important;
+        }
+    </style>
+    
+</head>
+
+<body>
+
+    <!-- NAVBAR -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary sticky-top">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('index') }}"><strong>Job Sphere</strong></a>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('index') }}">Home</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('jobs_page') }}">Browse Jobs</a></li>
+                </ul>
+
+                <ul class="navbar-nav">
+{% if session.email %}
+    <li class="nav-item">
+        <a class="nav-link">{{ session.user_initial }}</a>
+    </li>
+    <li class="nav-item dropdown profile-dropdown">
+                            <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="profileMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <!-- profile circle with initial -->
+                                <span class="profile-circle me-2" title="{{ user_email }}">
+                                    {{ user_email[0] | upper }}
+                                </span>
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="profileMenu">
+                                <li><a class="dropdown-item" href="{{ url_for('dashboard_hr') }}">Dashboard</a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('logout') }}">Logout</a></li>
+                            </ul>
+                        </li>
+{% else %}
+    <li class="nav-item">
+        <a class="nav-link" href="{{ url_for('login_page') }}">Login</a>
+    </li>
+{% endif %}
+                    <li class="nav-item"><a class="nav-link active" href="{{ url_for('dashboard_hr') }}">Dashboard</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+
+    <div class="container-fluid my-4">
+        <div class="row">
+
+            <!-- SIDEBAR -->
+            <div class="col-md-3 col-lg-2 bg-light sidebar">
+                <div class="position-sticky pt-3">
+                    <ul class="nav flex-column">
+                        <li class="nav-item"><a class="nav-link active" href="#overview">Overview</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#jobs">Job Postings</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#candidates">Candidates</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#interviews">Interviews</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#reports">Reports</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- MAIN CONTENT -->
+            <div class="col-md-9 col-lg-10">
+
+                <h1 class="mb-4">HR Dashboard</h1>
+
+                <!-- Stats Overview -->
+                <div class="row mb-4" id="overview">
+                    <div class="col-md-3 mb-3">
+                        <div class="card dashboard-card text-center">
+                            <div class="card-body">
+                                <h5 class="card-title">Active Jobs</h5>
+                                <h2 class="text-primary">{{ data.total_openings }}</h2>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-3 mb-3">
+                        <div class="card dashboard-card text-center">
+                            <div class="card-body">
+                                <h5 class="card-title">Total Applicants</h5>
+                                <h2 class="text-info">{{ data.total_applications }}</h2>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-3 mb-3">
+                        <div class="card dashboard-card text-center">
+                            <div class="card-body">
+                                <h5 class="card-title">Interviews</h5>
+                                <h2 class="text-warning">45</h2> <!-- static for now -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-3 mb-3">
+                        <div class="card dashboard-card text-center">
+                            <div class="card-body">
+                                <h5 class="card-title">Hired</h5>
+                                <h2 class="text-success">{{ data.hired_candidates }}</h2>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <!-- Recent Applications -->
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title">Recent Applications</h5>
+
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Candidate</th>
+                                                <th>Position</th>
+                                                <th>Department</th>
+                                                <th>Status</th>
+                                                <th>Date</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+
+                                            {% for app in applications %}
+                                            <tr>
+                                                <td>{{ app.applicant_name }}</td>
+                                                <td>{{ app.job_title }}</td>
+                                                <td>{{ app.department }}</td>
+
+                                                <td>
+                                                    <span class="badge 
+                                                        {% if app.status == 'Hiring' %} bg-success
+                                                        {% elif app.status == 'Interview Scheduled' %} bg-warning
+                                                        {% elif app.status == 'Under Review' %} bg-info
+                                                        {% elif app.status == 'Rejected' %} bg-danger
+                                                        {% else %} bg-secondary {% endif %}
+                                                    ">
+                                                        {{ app.status }}
+                                                    </span>
+                                                </td>
+
+                                                <td>{{ app.date_applied }}</td>
+                                            </tr>
+                                            {% endfor %}
+
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <a href="#candidates" class="btn btn-sm btn-outline-primary">View All Applications</a>
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+
+    <footer class="bg-dark text-light py-4 mt-5">
+        <div class="container text-center">
+            <p>&copy; 2024 Job Sphere. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+
+</body>
+</html>

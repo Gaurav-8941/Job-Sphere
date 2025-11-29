@@ -1,0 +1,275 @@
+/* System: Job Sphere UI Core
+    Version: 2.3 (Spacing Update)
+    Theme: Modern Tech / Clean
+*/
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+    --primary-color: #4f46e5; /* Indigo 600 */
+    --primary-dark: #4338ca;  /* Indigo 700 */
+    --secondary-color: #64748b; /* Slate 500 */
+    --accent-color: #0ea5e9;    /* Sky 500 */
+    --success-color: #10b981;
+    --warning-color: #f59e0b;
+    --danger-color: #ef4444;
+    
+    /* Global Light Blue Background */
+    --light-bg: #e0f2fe;
+    
+    --dark-text: #0f172a;
+    --card-bg: #ffffff;
+    --sidebar-width: 260px;
+    --nav-height: 70px;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--light-bg);
+    color: var(--dark-text);
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* --- Typography & Utilities --- */
+h1, h2, h3, h4, h5, h6 {
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    color: #1e293b;
+}
+
+.text-gradient {
+    background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.shadow-soft {
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.025);
+}
+
+.hover-lift {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.hover-lift:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* --- Navigation --- */
+.navbar {
+    background-color: rgba(255, 255, 255, 0.85) !important;
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+    height: var(--nav-height);
+}
+
+.navbar-brand {
+    color: var(--primary-color) !important;
+    font-weight: 800;
+    font-size: 1.5rem;
+}
+/* Nav Links & Icons */
+.nav-link {
+    color: rgba(255, 255, 255, 0.9) !important; /* White text by default */
+    font-weight: 500;
+    transition: all 0.2s ease;
+    font-size: 0.95rem;
+    padding: 0.5rem 1rem !important; /* Add padding for the hover background */
+    border-radius: 8px; /* Rounded corners for the hover background */
+    margin: 0 2px;
+}
+
+.nav-link:hover, .nav-link.active {
+    color: #ffffff !important; /* Stay white on hover */
+    background-color: rgba(255, 255, 255, 0.2); /* Semi-transparent white background */
+    transform: translateY(-8px);
+}
+
+/* Navbar Buttons (Log In / Post Job) Overrides */
+.navbar .btn {
+    color: #ffffff !important;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: transparent;
+}
+
+.navbar .btn:hover {
+    background-color: rgba(255, 255, 255, 0.2) !important; /* Same glass effect */
+    border-color: #ffffff;
+    color: #ffffff !important;
+}
+
+/* --- Hero Section --- */
+.hero-section {
+    /* UPDATED: Increased padding for more vertical distance */
+    padding: 2rem 0; 
+    background: radial-gradient(circle at top right, #e0e7ff, transparent),
+                radial-gradient(circle at bottom left, #e0f2fe, transparent);
+    position: relative;
+    overflow: hidden;
+}
+
+.hero-content {
+    position: relative;
+    z-index: 10;
+}
+
+/* --- Modern Forms --- */
+.form-control {
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    padding: 0.75rem 1rem;
+    border-radius: 12px;
+    transition: all 0.2s;
+}
+
+.form-control:focus {
+    background-color: #ffffff;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+}
+
+/* --- Cards & Features --- */
+.card {
+    border: none;
+    border-radius: 16px;
+    background: var(--card-bg);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    transition: all 0.3s ease;
+}
+
+.feature-card {
+    padding: 3rem 2rem;
+    height: 100%;
+    border: 1px solid rgba(0,0,0,0.03);
+    background: #ffffff;
+    position: relative;
+    overflow: hidden;
+}
+
+.feature-icon {
+    width: 80px;
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 20px;
+    margin-bottom: 2rem;
+    font-size: 2rem;
+    transition: transform 0.4s ease;
+}
+
+.feature-card:hover .feature-icon {
+    transform: scale(1.1) rotate(5deg);
+}
+
+/* Neon Glows */
+.neon-primary { border-bottom: 4px solid var(--primary-color); }
+.neon-primary:hover { transform: translateY(-8px); box-shadow: 0 20px 40px rgba(79, 70, 229, 0.2); }
+
+.neon-success { border-bottom: 4px solid var(--success-color); }
+.neon-success:hover { transform: translateY(-8px); box-shadow: 0 20px 40px rgba(16, 185, 129, 0.2); }
+
+.neon-info { border-bottom: 4px solid var(--accent-color); }
+.neon-info:hover { transform: translateY(-8px); box-shadow: 0 20px 40px rgba(14, 165, 233, 0.2); }
+
+/* --- Job Cards --- */
+.job-card {
+    border: 1px solid rgba(0,0,0,0.04);
+}
+
+.job-meta-badge {
+    background: #f1f5f9;
+    color: var(--secondary-color);
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+/* --- Dashboard Elements --- */
+.sidebar {
+    width: var(--sidebar-width);
+    background-color: #ffffff;
+    border-right: 1px solid #e2e8f0;
+    padding-top: 2rem;
+}
+
+@media (min-width: 992px) {
+    .sidebar {
+        position: fixed;
+        height: calc(100vh - var(--nav-height));
+        overflow-y: auto;
+    }
+    .main-content {
+        margin-left: var(--sidebar-width);
+        padding: 2rem;
+    }
+}
+
+.sidebar-link {
+    display: flex;
+    align-items: center;
+    padding: 0.8rem 1.5rem;
+    color: #64748b;
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.2s;
+    border-right: 3px solid transparent;
+}
+
+.sidebar-link:hover, .sidebar-link.active {
+    background-color: #f0f9ff;
+    color: var(--primary-color);
+    border-right-color: var(--primary-color);
+}
+
+.stat-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border: 1px solid rgba(0,0,0,0.03);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+}
+
+/* Modern Tables */
+.table-modern thead th {
+    background-color: #f8fafc;
+    color: #64748b;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 1rem 1.5rem;
+}
+
+.table-modern tbody td {
+    padding: 1rem 1.5rem;
+    vertical-align: middle;
+    border-bottom: 1px solid #f1f5f9;
+    color: #334155;
+}
+
+.table-modern tr:hover td {
+    background-color: #f0f9ff;
+}
+
+/* --- Animations --- */
+.fade-in-up {
+    animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    opacity: 0;
+    transform: translateY(20px);
+}
+
+@keyframes fadeInUp {
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.delay-100 { animation-delay: 0.1s; }
+.delay-200 { animation-delay: 0.2s; }
+.delay-300 { animation-delay: 0.3s; }

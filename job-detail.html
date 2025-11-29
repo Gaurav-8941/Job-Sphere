@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Job Details - Job Sphere</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary sticky-top">
+  <div class="container">
+    <a class="navbar-brand" href="{{ url_for('index') }}"><strong>Job Sphere</strong></a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"></button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav me-auto">
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('index') }}">Home</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('jobs_page') }}">Browse Jobs</a></li>
+      </ul>
+      <ul class="navbar-nav">
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('login_page') }}">Login</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('dashboard_hr') }}">Dashboard</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<div class="container my-5">
+  <a href="{{ url_for('jobs_page') }}" class="btn btn-outline-secondary mb-4">&larr; Back to Jobs</a>
+
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="card mb-4">
+        <div class="card-body">
+          <h2 class="card-title">{{ job.title }}</h2>
+          <p class="text-muted">Department: {{ job.department }}</p>
+
+          <div class="mb-4">
+            <h4>Job Description</h4>
+            <p>{{ job.description }}</p>
+          </div>
+
+          <div class="mb-4">
+            <h4>Requirements</h4>
+            <ul>
+              {% for req in job.requirements %}
+                <li>{{ req }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+
+          <div class="mb-4">
+            <h4>Details</h4>
+            <p><strong>Location:</strong> {{ job.location }}</p>
+            <p><strong>Experience:</strong> {{ job.experience }}</p>
+            <p><strong>Posted:</strong> {{ job.posted_date }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card">
+        <div class="card-body">
+          <h4 class="card-title">Apply for this Position</h4>
+          <form id="application-form" action="{{ url_for('jobs_page') }}" method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="job_id" value="{{ job.id }}">
+            <div class="mb-3">
+              <label for="applicant-name" class="form-label">Full Name *</label>
+              <input type="text" class="form-control" id="applicant-name" name="name" required>
+            </div>
+            <div class="mb-3">
+              <label for="applicant-email" class="form-label">Email Address *</label>
+              <input type="email" class="form-control" id="applicant-email" name="email" required>
+            </div>
+            <div class="mb-3">
+              <label for="applicant-phone" class="form-label">Phone Number</label>
+              <input type="tel" class="form-control" id="applicant-phone" name="phone">
+            </div>
+            <div class="mb-3">
+              <label for="applicant-resume" class="form-label">Upload Resume (PDF) *</label>
+              <input type="file" class="form-control" id="applicant-resume" name="resume" accept=".pdf" required>
+              <div class="form-text">Max file size: 5MB</div>
+            </div>
+            <div class="mb-3">
+              <label for="applicant-coverletter" class="form-label">Cover Letter</label>
+              <textarea class="form-control" id="applicant-coverletter" name="cover_letter" rows="4" placeholder="Why are you interested in this position?"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Submit Application</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="bg-dark text-light py-4 mt-5">
+  <div class="container text-center"><p>&copy; 2024 Job Sphere. All rights reserved.</p></div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
