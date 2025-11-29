@@ -1,0 +1,46 @@
+<div class="mb-3">
+    <label class="form-label">Job Title</label>
+    <input type="text" name="title" class="form-control" required value="{{ job.title if job else '' }}">
+</div>
+
+<div class="mb-3">
+    <label class="form-label">Department</label>
+    <select class="form-select" name="department" required>
+        <option value="">Select…</option>
+        {% for dept in ['IT','Marketing','HR','Finance','Operations'] %}
+        <option value="{{ dept }}" {% if job and job.department==dept %}selected{% endif %}>{{ dept }}</option>
+        {% endfor %}
+    </select>
+</div>
+
+<div class="row">
+    <div class="col-md-6 mb-3">
+        <label class="form-label">Location</label>
+        <input type="text" name="location" class="form-control" required value="{{ job.location if job else '' }}">
+    </div>
+    <div class="col-md-6 mb-3">
+        <label class="form-label">Experience Required</label>
+        <input type="text" name="experience" placeholder="3+ years" class="form-control" required value="{{ job.experience if job else '' }}">
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6 mb-3">
+        <label class="form-label">Hiring Start Date</label>
+        <input type="date" name="start_date" class="form-control" required value="{{ job.hiring_start|default('') }}">
+    </div>
+    <div class="col-md-6 mb-3">
+        <label class="form-label">Hiring End Date</label>
+        <input type="date" name="end_date" class="form-control" required value="{{ job.hiring_end|default('') }}">
+    </div>
+</div>
+
+<div class="mb-3">
+    <label class="form-label">Required Skills (comma separated)</label>
+    <input type="text" name="skills" placeholder="Python, Flask, SQL" class="form-control" required value="{{ job.skills if job else '' }}">
+</div>
+
+<div class="mb-3">
+    <label class="form-label">Job Description</label>
+    <textarea id="description" name="description">{{ job.description if job else '' }}</textarea>
+</div>

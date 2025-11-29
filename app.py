@@ -124,18 +124,17 @@ applications = [
 def index():
     return render_template('index.html')
 
+
 @app.route('/jobs')
 def jobs_page():
-    return render_template('jobs.html', jobs=jobs)
+    job_rows = fetch_all("SELECT * FROM jobs")
+    return render_template('jobs.html', jobs=job_rows)
 
 @app.route('/jobs/<int:job_id>')
 def job_detail(job_id):
-    job = next((j for j in jobs if j['id'] == job_id), None)
-    if job is None:
+    job = fetch_one("SELECT * FROM jobs WHERE id = %s", (job_id,))
+    if not job:
         abort(404)
-    # Add some default keys expected by job-detail template
-    job.setdefault('requirements', ['Requirement 1', 'Requirement 2'])
-    job.setdefault('posted_date', 'Oct 01, 2025')
     return render_template('job-detail.html', job=job)
 
 @app.route('/login', methods=['GET'])
@@ -144,6 +143,7 @@ def login_page():
 
 # This is the login API used by the login.html client-side script.
 # It accepts JSON (fetch from login.html) or regular form post for flexibility.
+
 @app.route('/api/login', methods=['POST'])
 def login():
     # Accept JSON (fetch) or form-encoded
@@ -243,6 +243,95 @@ def dashboard_hr():
                            data=dashboard_data,
                            applications=applications,
                            user_email=session.get('email'))
+
+
+# -------------------------------
+# HR JOB ROUTES (FIXED & CLEAN)
+# -------------------------------
+
+@app.route('/hr/jobs/add')
+def hr_add_job():
+    if not session.get('is_hr'):
+        return redirect(url_for('login_page'))
+    return render_template('hr_add_job.html')
+
+
+@app.route('/hr/jobs/add', methods=['POST'])
+def hr_add_job_post():
+    if not session.get('is_hr'):
+        return redirect(url_for('login_page'))
+
+    title = request.form['title']
+    department = request.form['department']
+    location = request.form['location']
+    experience = request.form['experience']
+    skills = request.form['skills']
+    description = request.form['description']
+    start_date = request.form['start_date']
+    end_date = request.form['end_date']
+
+    execute("""
+        INSERT INTO jobs (title, department, location, experience, skills, description, hiring_start, hiring_end)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+    """, (title, department, location, experience, skills, description, start_date, end_date))
+
+    return redirect(url_for('hr_jobs_manage'))
+
+
+# MANAGE JOBS (LIST + DELETE BUTTON)
+@app.route('/hr/jobs/manage')
+def hr_jobs_manage():
+    if not session.get('is_hr'):
+        return redirect(url_for('login_page'))
+
+    job_rows = fetch_all("SELECT * FROM jobs ORDER BY id DESC")
+    return render_template('hr_jobs_manage.html', jobs=job_rows)
+
+
+# EDIT JOB PAGE
+@app.route('/hr/jobs/edit/<int:job_id>')
+def hr_edit_job(job_id):
+    if not session.get('is_hr'):
+        return redirect(url_for('login_page'))
+
+    job = fetch_one("SELECT * FROM jobs WHERE id = %s", (job_id,))
+    return render_template('hr_edit_job.html', job=job)
+
+
+# EDIT JOB POST
+@app.route('/hr/jobs/edit/<int:job_id>', methods=['POST'])
+def hr_edit_job_post(job_id):
+    if not session.get('is_hr'):
+        return redirect(url_for('login_page'))
+
+    title = request.form['title']
+    department = request.form['department']
+    location = request.form['location']
+    experience = request.form['experience']
+    skills = request.form['skills']
+    description = request.form['description']
+    start_date = request.form['start_date']
+    end_date = request.form['end_date']
+
+    execute("""
+        UPDATE jobs SET 
+            title=%s, department=%s, location=%s, experience=%s,
+            skills=%s, description=%s, hiring_start=%s, hiring_end=%s
+        WHERE id=%s
+    """, (title, department, location, experience, skills, description, start_date, end_date, job_id))
+
+    return redirect(url_for('hr_jobs_manage'))
+
+
+# DELETE JOB
+@app.route('/hr/jobs/delete/<int:job_id>')
+def hr_delete_job(job_id):
+    if not session.get('is_hr'):
+        return redirect(url_for('login_page'))
+
+    execute("DELETE FROM jobs WHERE id = %s", (job_id,))
+    return redirect(url_for('hr_jobs_manage'))
+
 
 @app.route('/dashboard/user')
 def dashboard_user():
