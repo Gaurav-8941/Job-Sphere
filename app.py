@@ -183,20 +183,17 @@ def login():
     # No match
     return jsonify({'error': 'Invalid credentials'}), 401
 
-# Backwards-compatible route name used in job-detail.html form action
 @app.route('/apply', methods=['POST'])
 @app.route('/api/apply', methods=['POST'])
 def apply_job():
     try:
         job_id = request.form.get('job_id')
-        if not job_id:
-            return jsonify({'error': 'Job ID not specified'}), 400
-
         name = request.form.get('name')
         email = request.form.get('email')
         phone = request.form.get('phone')
         cover_letter = request.form.get('cover_letter')
 
+        # Upload resume
         if 'resume' not in request.files:
             return jsonify({'error': 'No resume uploaded'}), 400
 
@@ -212,42 +209,49 @@ def apply_job():
         save_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_name)
         file.save(save_path)
 
-        # In production, save application data to DB. For now we print and return success.
-        print("Application saved:", {
-            "job_id": job_id, "name": name, "email": email, "phone": phone,
-            "cover_letter": cover_letter, "resume_file": unique_name
-        })
+        # INSERT INTO DATABASE
+        execute("""
+            INSERT INTO applications (job_id, applicant_name, email, phone, cover_letter, resume_file)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (job_id, name, email, phone, cover_letter, unique_name))
 
-        return jsonify({'message': 'Application submitted successfully!'}), 200
+        return jsonify({'message': 'Application submitted successfully!'})
 
     except Exception as e:
         print("Error in apply_job:", e)
         return jsonify({'error': str(e)}), 500
 
-
 @app.route('/dashboard/hr')
 def dashboard_hr():
-    # Require HR session
     if not session.get('is_hr'):
         return redirect(url_for('login_page'))
 
-    # Create dashboard data (you can replace with DB-driven counts)
+    # Fetch job count and application count
+    job_rows = fetch_all("SELECT COUNT(*) AS total FROM jobs")
+    application_rows = fetch_all("SELECT COUNT(*) AS total FROM applications")
+
     dashboard_data = {
-        'total_openings': len(jobs),
-        'total_applications': len(applications),
+        'total_openings': job_rows[0]['total'],
+        'total_applications': application_rows[0]['total'],
         'interviews': 45,
         'hired': 8
     }
+
+    # Fetch latest applications from DB
+    applications = fetch_all("""
+        SELECT a.*, j.title AS job_title, j.department
+        FROM applications a
+        JOIN jobs j ON a.job_id = j.id
+        ORDER BY a.date_applied DESC
+        LIMIT 10
+    """)
 
     return render_template('dashboard_hr.html',
                            data=dashboard_data,
                            applications=applications,
                            user_email=session.get('email'))
 
-
-# -------------------------------
-# HR JOB ROUTES (FIXED & CLEAN)
-# -------------------------------
+#Hr jobs route
 
 @app.route('/hr/jobs/add')
 def hr_add_job():
