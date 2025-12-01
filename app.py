@@ -10,9 +10,12 @@ from mysql.connector import pooling
 #Video call stuff
 app= Flask(__name__)
 sock = Sock(app)
-user_sockets = {}
 hr_sockets = {}
-pending_calls = {}
+user_sockets = {}
+
+pending_offers = {}
+pending_answers = {}
+pending_ice = {}
 
 
 #Flask path
@@ -388,73 +391,106 @@ def dashboard_user():
                            user_email=user_email)
 
 #Video call stuff
-@app.route('/video/<int:app_id>')
+@app.route("/video/<int:app_id>")
 def video_call(app_id):
-    if not session.get('is_hr'):
-        return redirect(url_for('login_page'))
+    return render_template("video_call.html", app_id=app_id)
 
-    app_data = fetch_one("SELECT * FROM applications WHERE id = %s", (app_id,))
-    if not app_data:
-        return "Application not found", 404
 
-    return render_template('video_call.html', app=app_data)
+# ------------------------
+# USER joins video call page
+# ------------------------
+@app.route("/video/user/<int:app_id>")
+def video_call_user(app_id):
+    return render_template("video_call_user.html", app_id=app_id)
 
+
+# -------------------------
+# HR WebSocket (sender)
+# -------------------------
 @sock.route('/ws/hr/<int:app_id>')
-def hr_socket(ws, app_id):
+def ws_hr(ws, app_id):
+
     hr_sockets[app_id] = ws
 
-    # inform user that HR started the call
+    # Notify candidate HR is online
     if app_id in user_sockets:
         try:
-            user_sockets[app_id].send(json.dumps({"type": "call_start"}))
+            user_sockets[app_id].send(json.dumps({"type": "hr_online"}))
         except:
             pass
 
     while True:
-        data = ws.receive()
-        if not data:
+        msg = ws.receive()
+        if not msg:
             break
 
-        # Forward HR's OFFER or ICE to user
-        if app_id in user_sockets:
-            try:
-                user_sockets[app_id].send(data)
-            except:
-                pass
+        data = json.loads(msg)
 
+        # HR SENDS OFFER
+        if data["type"] == "offer":
+            if app_id in user_sockets:
+                user_sockets[app_id].send(json.dumps({
+                    "type": "offer",
+                    "offer": data["offer"]
+                }))
+            else:
+                pending_offers[app_id] = data["offer"]
+
+        # HR ICE
+        if data["type"] == "ice":
+            if app_id in user_sockets:
+                user_sockets[app_id].send(json.dumps({
+                    "type": "ice",
+                    "ice": data["ice"]
+                }))
+            else:
+                pending_ice.setdefault(app_id, []).append(data["ice"])
+# -------------------------
+# USER WebSocket (receiver)
+# -------------------------
 @sock.route('/ws/user/<int:app_id>')
-def user_socket(ws, app_id):
+def ws_user(ws, app_id):
+
     user_sockets[app_id] = ws
 
+    # Send pending events if user came late
+    if app_id in pending_offers:
+        ws.send(json.dumps({"type": "offer", "offer": pending_offers[app_id]}))
+
+    if app_id in pending_ice:
+        for c in pending_ice[app_id]:
+            ws.send(json.dumps({"type": "ice", "ice": c}))
+
+    # Notify HR that user joined
+    if app_id in hr_sockets:
+        hr_sockets[app_id].send(json.dumps({"type": "user_online"}))
+
     while True:
-        data = ws.receive()
-        if not data:
+        msg = ws.receive()
+        if not msg:
             break
 
-        # Forward user's ANSWER or ICE to HR
-        if app_id in hr_sockets:
-            try:
-                hr_sockets[app_id].send(data)
-            except:
-                pass
+        data = json.loads(msg)
 
-#Video call join
-@app.route("/interview/<int:application_id>")
-def interview_page(application_id):
-    return render_template("video_join.html", application_id=application_id)
+        # USER SENDS ANSWER
+        if data["type"] == "answer":
+            if app_id in hr_sockets:
+                hr_sockets[app_id].send(json.dumps({
+                    "type": "answer",
+                    "answer": data["answer"]
+                }))
+            else:
+                pending_answers[app_id] = data["answer"]
 
-@app.route('/video/user/<int:app_id>')
-def video_user(app_id):
-    return render_template("video_call_user.html", app_id=app_id)
-
-@app.route('/video-call/start/<int:app_id>')
-def start_video_call(app_id):
-    return render_template("video_call.html", app_id=app_id)
-
-
-
-
-
+        # USER ICE
+        if data["type"] == "ice":
+            if app_id in hr_sockets:
+                hr_sockets[app_id].send(json.dumps({
+                    "type": "ice",
+                    "ice": data["ice"]
+                }))
+            else:
+                pending_ice.setdefault(app_id, []).append(data["ice"])
 @app.route('/logout')
 def logout():
     session.clear()
@@ -463,4 +499,6 @@ def logout():
 
 # Run
 if __name__ == '__main__':
-    app.run(debug=True)
+ app.run(host="0.0.0.0", port=5000, debug=True)
+
+
