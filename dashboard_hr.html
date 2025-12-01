@@ -152,6 +152,8 @@
                                                 <th>Department</th>
                                                 <th>Status</th>
                                                 <th>Date</th>
+                                                <th>Resume</th>
+                                                <th>Video Call</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -174,7 +176,32 @@
                                                     </span>
                                                 </td>
 
-                                                <td>{{ app.date_applied }}</td>
+                                                <td>{{ app.date_applied}}
+                                                </td>
+                                                
+                                             <td>
+                                                {% if app.resume_file %}
+                                                    <a href="{{ url_for('view_resume', filename=app.resume_file) }}" 
+                                                    class="btn btn-sm btn-outline-primary" target="_blank">
+                                                    Preview
+                                                    </a>
+
+                                                    <a href="{{ url_for('download_resume', filename=app.resume_file) }}" 
+                                                    class="btn btn-sm btn-outline-secondary">
+                                                    Download
+                                                    </a>
+                                                {% else %}
+                                                    <span class="text-muted">No file</span>
+                                                {% endif %}
+                                            </td>
+                                        <td>
+                                            <a href="{{ url_for('video_call', app_id=app.id) }}"
+                                            class="btn btn-sm btn-outline-primary
+                                            {% if app.status == 'Hired' %} disabled {% endif %}">
+                                            Video Call
+                                            </a>
+                                        </td>
+
                                             </tr>
                                             {% endfor %}
 

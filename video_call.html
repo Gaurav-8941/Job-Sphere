@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Video Interview</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+<style>
+    body {
+        background: #f5f5f5;
+    }
+    #video-grid {
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+        margin-top: 30px;
+    }
+    video {
+        width: 45%;
+        height: 350px;
+        background: #000;
+        border-radius: 8px;
+        box-shadow: 0px 0px 12px rgba(0,0,0,0.25);
+    }
+    .controls {
+        margin-top: 25px;
+        text-align: center;
+    }
+    .controls button {
+        margin: 0 10px;
+    }
+    #status {
+        text-align: center;
+        margin-top: 15px;
+        font-weight: bold;
+    }
+</style>
+</head>
+<body>
+
+<div class="container text-center mt-4">
+    <h2 class="mb-3">Video Interview</h2>
+    <p class="text-muted">You are calling the candidate for a live interview</p>
+</div>
+
+<h5 id="status" class="text-primary">Waiting for candidate to join…</h5>
+
+<div id="video-grid">
+    <div>
+        <h6>Your Camera</h6>
+        <video id="localVideo" autoplay playsinline muted></video>
+    </div>
+
+    <div>
+        <h6>Candidate</h6>
+        <video id="remoteVideo" autoplay playsinline></video>
+    </div>
+</div>
+
+<div class="controls">
+    <button id="startCall" class="btn btn-success btn-lg">Start Call</button>
+    <button id="hangupCall" class="btn btn-danger btn-lg">End Call</button>
+</div>
+
+<script>
+    const ws = new WebSocket("ws://" + window.location.host + "/ws/video");
+    let pc = null;
+
+    ws.onmessage = async (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data.type === "offer") {
+            await pc.setRemoteDescription(new RTCSessionDescription(data));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            ws.send(JSON.stringify(answer));
+            document.getElementById("status").innerText = "Candidate joined ✔";
+        }
+
+        if (data.type === "answer") {
+            await pc.setRemoteDescription(new RTCSessionDescription(data));
+        }
+
+        if (data.type === "candidate") {
+            if (pc) {
+                pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+            }
+        }
+    };
+
+    document.getElementById("startCall").onclick = async () => {
+        document.getElementById("status").innerText = "Starting call…";
+
+        pc = new RTCPeerConnection();
+
+        pc.onicecandidate = (event) => {
+            if (event.candidate) {
+                ws.send(JSON.stringify({ type: "candidate", candidate: event.candidate }));
+            }
+        };
+
+        pc.ontrack = (event) => {
+            document.getElementById("remoteVideo").srcObject = event.streams[0];
+        };
+
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        document.getElementById("localVideo").srcObject = stream;
+        stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        ws.send(JSON.stringify(offer));
+
+        document.getElementById("status").innerText = "Calling candidate…";
+    };
+
+    document.getElementById("hangupCall").onclick = () => {
+        if (pc) pc.close();
+        document.getElementById("status").innerText = "Call Ended";
+    };
+</script>
+
+</body>
+</html>

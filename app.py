@@ -1,4 +1,5 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, abort, session
+from flask import Flask, render_template, request, jsonify, redirect, url_for, abort, session, send_file,send_from_directory
+from flask_sock import Sock
 import os
 from werkzeug.utils import secure_filename
 from datetime import datetime
@@ -6,15 +7,20 @@ import json
 import mysql.connector
 from mysql.connector import pooling
 
-# -------------------------------
-# Paths (keeps your requested pattern but safe fallback)
-# -------------------------------
-# Preferred (keeps your original pattern)
+#Video call stuff
+app= Flask(__name__)
+sock = Sock(app)
+user_sockets = {}
+hr_sockets = {}
+pending_calls = {}
+
+
+#Flask path
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 TEMPLATES_DIR = os.path.join(BASE_DIR, 'templates')
 STATIC_DIR = os.path.join(BASE_DIR, 'static')
 
-# If the preferred path doesn't contain templates (common when app.py is inside backend/),
+# If the preferred path doesn't contain templates/static,
 # fall back to current directory so Flask can actually find templates/static.
 if not os.path.isdir(TEMPLATES_DIR):
     BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '.'))
@@ -24,9 +30,7 @@ if not os.path.isdir(TEMPLATES_DIR):
 app = Flask(__name__, template_folder=TEMPLATES_DIR, static_folder=STATIC_DIR)
 app.config['SECRET_KEY'] = 'your-very-secret-key-that-should-be-random'
 
-# -------------------------------
-# File upload config (unchanged)
-# -------------------------------
+#upload files
 app.config['UPLOAD_FOLDER'] = os.path.join(STATIC_DIR, 'uploads')
 ALLOWED_EXTENSIONS = {'pdf'}
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5MB
@@ -35,12 +39,7 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# -------------------------------
-# MySQL Connection Pool
-# -------------------------------
-# Install dependency: pip install mysql-connector-python
-#
-# Edit the db_config dict below to match your local MySQL credentials.
+#MYSQL Connection Pool
 db_config = {
     "user": "root",
     "password": "root",
@@ -336,27 +335,131 @@ def hr_delete_job(job_id):
     execute("DELETE FROM jobs WHERE id = %s", (job_id,))
     return redirect(url_for('hr_jobs_manage'))
 
+@app.route('/resume/<path:filename>')
+def view_resume(filename):
+    """
+    Opens the resume directly in browser (inline preview).
+    """
+    resume_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    return send_file(resume_path, mimetype='application/pdf')
 
+@app.route('/resume/download/<path:filename>')
+def download_resume(filename):
+    return send_from_directory(
+        app.config['UPLOAD_FOLDER'],
+        filename,
+        as_attachment=True
+    )
+
+@app.route('/update_status/<int:app_id>', methods=['POST'])
+def update_status(app_id):
+    if not session.get('is_hr'):
+        return redirect(url_for('login_page'))
+
+    new_status = request.form.get('status')
+
+    execute("UPDATE applications SET status = %s WHERE id = %s", (new_status, app_id))
+
+    return redirect(url_for('dashboard_hr'))
+
+
+#User Dashboard
 @app.route('/dashboard/user')
 def dashboard_user():
-    # Simple user dashboard placeholder - requires logged in user (non-HR)
-    if 'email' not in session:
+    if 'email' not in session or session.get('is_hr'):
         return redirect(url_for('login_page'))
-    return render_template('dashboard_dept.html', user_email=session.get('email'))
 
-@app.route('/dashboard/dept')
-def dashboard_dept():
-    return render_template('dashboard_dept.html')
+    user_email = session['email']
+
+    user_apps = fetch_all("""
+        SELECT applications.id AS app_id,
+               applications.status,
+               applications.resume_file,
+               jobs.title,
+               jobs.department
+        FROM applications
+        JOIN jobs ON applications.job_id = jobs.id
+        WHERE applications.email = %s
+        ORDER BY applications.id DESC
+    """, (user_email,))
+
+    return render_template("dashboard_user.html",
+                           applications=user_apps,
+                           user_email=user_email)
+
+#Video call stuff
+@app.route('/video/<int:app_id>')
+def video_call(app_id):
+    if not session.get('is_hr'):
+        return redirect(url_for('login_page'))
+
+    app_data = fetch_one("SELECT * FROM applications WHERE id = %s", (app_id,))
+    if not app_data:
+        return "Application not found", 404
+
+    return render_template('video_call.html', app=app_data)
+
+@sock.route('/ws/hr/<int:app_id>')
+def hr_socket(ws, app_id):
+    hr_sockets[app_id] = ws
+
+    # inform user that HR started the call
+    if app_id in user_sockets:
+        try:
+            user_sockets[app_id].send(json.dumps({"type": "call_start"}))
+        except:
+            pass
+
+    while True:
+        data = ws.receive()
+        if not data:
+            break
+
+        # Forward HR's OFFER or ICE to user
+        if app_id in user_sockets:
+            try:
+                user_sockets[app_id].send(data)
+            except:
+                pass
+
+@sock.route('/ws/user/<int:app_id>')
+def user_socket(ws, app_id):
+    user_sockets[app_id] = ws
+
+    while True:
+        data = ws.receive()
+        if not data:
+            break
+
+        # Forward user's ANSWER or ICE to HR
+        if app_id in hr_sockets:
+            try:
+                hr_sockets[app_id].send(data)
+            except:
+                pass
+
+#Video call join
+@app.route("/interview/<int:application_id>")
+def interview_page(application_id):
+    return render_template("video_join.html", application_id=application_id)
+
+@app.route('/video/user/<int:app_id>')
+def video_user(app_id):
+    return render_template("video_call_user.html", app_id=app_id)
+
+@app.route('/video-call/start/<int:app_id>')
+def start_video_call(app_id):
+    return render_template("video_call.html", app_id=app_id)
+
+
+
+
 
 @app.route('/logout')
 def logout():
     session.clear()
-    return redirect(url_for('index'))
+    return redirect(url_for('login_page'))
 
-# Custom 404
-@app.errorhandler(404)
-def page_not_found(error):
-    return render_template('404.html'), 404
 
 # Run
 if __name__ == '__main__':

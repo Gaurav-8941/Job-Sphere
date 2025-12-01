@@ -36,7 +36,8 @@
                 <ul class="navbar-nav">
 {% if session.email %}
     <li class="nav-item">
-        <a class="nav-link">{{ session.user_initial }}</a>
+        <a class="nav-link">{{ user_email[0] | upper }}
+</a>
     </li>
     <li class="nav-item dropdown profile-dropdown">
                             <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="profileMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -136,41 +137,39 @@
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            <tr class="candidate-row">
-                                                <td>John Doe</td>
-                                                <td>Senior Software Engineer</td>
-                                                <td>6 years</td>
-                                                <td><span class="badge bg-warning">Screening</span></td>
-                                                <td>92%</td>
-                                                <td>
-                                                    <button class="btn btn-sm btn-outline-primary">View</button>
-                                                    <button class="btn btn-sm btn-outline-success">Schedule</button>
-                                                </td>
-                                            </tr>
-                                            <tr class="candidate-row">
-                                                <td>Alice Johnson</td>
-                                                <td>Software Engineer</td>
-                                                <td>3 years</td>
-                                                <td><span class="badge bg-info">Interview</span></td>
-                                                <td>88%</td>
-                                                <td>
-                                                    <button class="btn btn-sm btn-outline-primary">View</button>
-                                                    <button class="btn btn-sm btn-outline-info">Feedback</button>
-                                                </td>
-                                            </tr>
-                                            <tr class="candidate-row">
-                                                <td>Michael Chen</td>
-                                                <td>DevOps Engineer</td>
-                                                <td>4 years</td>
-                                                <td><span class="badge bg-success">Recommended</span></td>
-                                                <td>95%</td>
-                                                <td>
-                                                    <button class="btn btn-sm btn-outline-primary">View</button>
-                                                    <button class="btn btn-sm btn-outline-danger">Reject</button>
-                                                </td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
+    {% for app in applications %}
+    <tr>
+        <td>{{ user_email }}</td>
+        <td>{{ app.title }}</td>
+        <td>{{ app.experience }}</td>
+
+        <td>
+            <span class="badge 
+                {% if app.status == 'Hired' %} bg-success 
+                {% elif app.status == 'Interview Scheduled' %} bg-warning 
+                {% elif app.status == 'Under Review' %} bg-info 
+                {% else %} bg-secondary {% endif %}
+            ">
+                {{ app.status }}
+            </span>
+        </td>
+
+        <td>
+            <a href="{{ url_for('view_resume', filename=app.resume_file) }}"
+               class="btn btn-sm btn-outline-primary" target="_blank">Resume</a>
+        </td>
+
+        <td>
+            <a href="{{ url_for('video_user', app_id=app.app_id) }}"
+               class="btn btn-sm btn-outline-success 
+               {% if app.status == 'Hired' %} disabled {% endif %}">
+               Join Interview
+            </a>
+        </td>
+    </tr>
+    {% endfor %}
+</tbody>
+ </table>
                                 </div>
                                 <nav aria-label="Candidate pagination">
                                     <ul class="pagination justify-content-center">

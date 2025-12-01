@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>User Dashboard – Job Sphere</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <style>
+        body {
+            background: #f8f9fa;
+        }
+        .dashboard-card {
+            transition: transform .2s;
+        }
+        .dashboard-card:hover {
+            transform: translateY(-5px);
+        }
+        .profile-circle {
+            color: white !important;
+        }
+    </style>
+</head>
+
+<body>
+
+<!-- NAVBAR -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary sticky-top">
+    <div class="container">
+        <a class="navbar-brand" href="{{ url_for('index') }}"><strong>Job Sphere</strong></a>
+
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('index') }}">Home</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('jobs_page') }}">Browse Jobs</a></li>
+            </ul>
+
+            <ul class="navbar-nav">
+                {% if user_email %}
+                <li class="nav-item dropdown profile-dropdown">
+                    <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="profileMenu"
+                       data-bs-toggle="dropdown">
+                        <span class="profile-circle me-2">{{ user_email[0] | upper }}</span>
+                    </a>
+
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="{{ url_for('dashboard_user') }}">Dashboard</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('logout') }}">Logout</a></li>
+                    </ul>
+                </li>
+                {% endif %}
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<div class="container my-4">
+
+    <h2 class="mb-4">Welcome, {{ user_email }}</h2>
+
+    <!-- Stats -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card dashboard-card text-center">
+                <div class="card-body">
+                    <h6>Total Applications</h6>
+                    <h2 class="text-primary">{{ applications|length }}</h2>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card dashboard-card text-center">
+                <div class="card-body">
+                    <h6>Interviews Scheduled</h6>
+                    <h2 class="text-info">
+                        {{ applications | selectattr("status", "equalto", "Interview Scheduled") | list | length }}
+                    </h2>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card dashboard-card text-center">
+                <div class="card-body">
+                    <h6>Hired</h6>
+                    <h2 class="text-success">
+                        {{ applications | selectattr("status", "equalto", "Hired") | list | length }}
+                    </h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Applications Table -->
+    <div class="card">
+        <div class="card-body">
+
+            <h4 class="card-title mb-3">Your Applications</h4>
+
+            {% if applications %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                    <tr>
+                        <th>Position</th>
+                        <th>Department</th>
+                        <th>Status</th>
+                        <th>Resume</th>
+                        <th>Interview</th>
+                    </tr>
+                    </thead>
+
+                    <tbody>
+                    {% for app in applications %}
+                    <tr>
+                        <td>{{ app.title }}</td>
+                        <td>{{ app.department }}</td>
+
+                        <td>
+                            <span class="badge
+                                {% if app.status == 'Hired' %} bg-success
+                                {% elif app.status == 'Interview Scheduled' %} bg-warning
+                                {% elif app.status == 'Under Review' %} bg-info
+                                {% elif app.status == 'Rejected' %} bg-danger
+                                {% else %} bg-secondary {% endif %}
+                            ">
+                                {{ app.status }}
+                            </span>
+                        </td>
+
+                        <td>
+                            {% if app.resume_file %}
+                                <a href="{{ url_for('view_resume', filename=app.resume_file) }}"
+                                   class="btn btn-sm btn-outline-primary"
+                                   target="_blank">Preview</a>
+
+                                <a href="{{ url_for('download_resume', filename=app.resume_file) }}"
+                                   class="btn btn-sm btn-outline-secondary">Download</a>
+                            {% else %}
+                                <span class="text-muted">N/A</span>
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {% if app.status == 'Interview Scheduled' %}
+                                <a href="{{ url_for('video_user', app_id=app.app_id) }}"
+                                   class="btn btn-sm btn-outline-primary">Join Call</a>
+                            {% else %}
+                                <span class="text-muted">Not Available</span>
+                            {% endif %}
+                        </td>
+
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% else %}
+            <p class="text-muted">You have not applied for any jobs yet.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<footer class="bg-dark text-light py-4 mt-5">
+    <div class="container text-center">
+        <p>&copy; 2024 Job Sphere. All rights reserved.</p>
+    </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+</body>
+</html>
