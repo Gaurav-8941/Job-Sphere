@@ -1,79 +1,64 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Join Interview</title>
+    <title>Candidate Video Interview</title>
     <style>
-        body { background:#f5f5f5; font-family:Arial; }
-        #localVideo, #remoteVideo {
-            width:45%;
-            border-radius:12px;
-            box-shadow:0 0 10px rgba(0,0,0,0.3);
-        }
-        #wrapper { display:flex; justify-content:space-evenly; margin-top:40px; }
-        #info { text-align:center; margin-top:20px; }
-        .btn { padding:12px 22px; background:#dc3545; color:white; border:none; border-radius:6px; }
+        body { font-family: Arial; text-align: center; background: #f8f8f8; }
+        video { width: 40%; border-radius: 12px; margin: 10px; background: black; }
     </style>
 </head>
 <body>
 
-<h2 style="text-align:center;">Interview Video Call</h2>
+<h2>Interview Video Call</h2>
+<p id="status">Waiting for HR...</p>
 
-<div id="wrapper">
+<div>
     <video id="localVideo" autoplay muted></video>
     <video id="remoteVideo" autoplay></video>
 </div>
 
-<div id="info">
-    <p>You are joining as <strong>Candidate</strong></p>
-    <button class="btn" onclick="leaveCall()">Leave Call</button>
-</div>
 <script>
-let peerConnection = new RTCPeerConnection();
+let appId = "{{ app_id }}";
+let ws = new WebSocket(`ws://${location.host}/ws/user/${appId}`);
 
-// show local cam
-navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-    .then(stream => {
-        document.getElementById("localVideo").srcObject = stream;
-        stream.getTracks().forEach(t => peerConnection.addTrack(t, stream));
-    });
+let pc = new RTCPeerConnection({
+    iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+});
 
-// show remote video
-peerConnection.ontrack = (event) => {
-    document.getElementById("remoteVideo").srcObject = event.streams[0];
-};
+pc.ontrack = e => document.getElementById("remoteVideo").srcObject = e.streams[0];
 
-let ws = new WebSocket(`ws://${window.location.host}/ws/user/{{ app_id }}`);
+navigator.mediaDevices.getUserMedia({ video:true, audio:true })
+.then(stream => {
+    document.getElementById("localVideo").srcObject = stream;
+    stream.getTracks().forEach(track => pc.addTrack(track, stream));
+});
 
 ws.onmessage = async (event) => {
     let data = JSON.parse(event.data);
 
-    // HR started the call
-    if (data.type === "call_start") {
-        console.log("HR started call...");
-        return;
+    if (data.type === "hr_online") {
+        document.getElementById("status").innerHTML = "HR is calling...";
     }
 
-    // HR OFFER
     if (data.type === "offer") {
-        await peerConnection.setRemoteDescription(data.offer);
+        await pc.setRemoteDescription(data.offer);
 
-        let answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
+        let answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
 
-        ws.send(JSON.stringify({
-            type: "answer",
-            answer: answer
-        }));
+        ws.send(JSON.stringify({type:"answer", answer:answer}));
     }
 
-    // HR ICE
     if (data.type === "ice") {
-        if (data.candidate) {
-            peerConnection.addIceCandidate(data.candidate);
-        }
+        pc.addIceCandidate(data.ice);
     }
 };
 
+pc.onicecandidate = (event) => {
+    if (event.candidate) {
+        ws.send(JSON.stringify({ type:"ice", ice:event.candidate }));
+    }
+};
 </script>
 
 

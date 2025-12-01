@@ -149,7 +149,7 @@
 
                         <td>
                             {% if app.status == 'Interview Scheduled' %}
-                                <a href="{{ url_for('video_user', app_id=app.app_id) }}"
+                                <a href="{{ url_for('video_call_user', app_id=app.app_id) }}"
                                    class="btn btn-sm btn-outline-primary">Join Call</a>
                             {% else %}
                                 <span class="text-muted">Not Available</span>
