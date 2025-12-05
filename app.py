@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, abort, session, send_file,send_from_directory
+from flask import Flask, render_template, request, jsonify, redirect, url_for, abort, session, send_file, send_from_directory
 from flask_sock import Sock
 import os
 from werkzeug.utils import secure_filename
@@ -7,24 +7,11 @@ import json
 import mysql.connector
 from mysql.connector import pooling
 
-#Video call stuff
-app= Flask(__name__)
-sock = Sock(app)
-hr_sockets = {}
-user_sockets = {}
-
-pending_offers = {}
-pending_answers = {}
-pending_ice = {}
-
-
-#Flask path
+# Flask paths
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 TEMPLATES_DIR = os.path.join(BASE_DIR, 'templates')
 STATIC_DIR = os.path.join(BASE_DIR, 'static')
 
-# If the preferred path doesn't contain templates/static,
-# fall back to current directory so Flask can actually find templates/static.
 if not os.path.isdir(TEMPLATES_DIR):
     BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '.'))
     TEMPLATES_DIR = os.path.join(BASE_DIR, 'templates')
@@ -33,7 +20,15 @@ if not os.path.isdir(TEMPLATES_DIR):
 app = Flask(__name__, template_folder=TEMPLATES_DIR, static_folder=STATIC_DIR)
 app.config['SECRET_KEY'] = 'your-very-secret-key-that-should-be-random'
 
-#upload files
+# Websockets
+sock = Sock(app)
+hr_sockets = {}
+user_sockets = {}
+pending_offers = {}
+pending_answers = {}
+pending_ice = {}
+
+# Uploads
 app.config['UPLOAD_FOLDER'] = os.path.join(STATIC_DIR, 'uploads')
 ALLOWED_EXTENSIONS = {'pdf'}
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5MB
@@ -42,7 +37,7 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-#MYSQL Connection Pool
+# MySQL Connection Pool (mysql-connector)
 db_config = {
     "user": "root",
     "password": "root",
@@ -52,13 +47,13 @@ db_config = {
     "autocommit": True
 }
 
-# Create a small connection pool
 try:
-    pool = mysql.connector.pooling.MySQLConnectionPool(pool_name="job_sphere_pool",
-                                                       pool_size=5,
-                                                       **db_config)
+    pool = mysql.connector.pooling.MySQLConnectionPool(
+        pool_name="job_sphere_pool",
+        pool_size=5,
+        **db_config
+    )
 except Exception as e:
-    # If pool creation fails, print error (server will still run but DB calls will fail)
     print("MySQL pool creation error:", e)
     pool = None
 
@@ -66,7 +61,6 @@ def get_connection():
     if pool:
         return pool.get_connection()
     else:
-        # fallback single connection (less ideal)
         return mysql.connector.connect(**db_config)
 
 def fetch_one(query, params=()):
@@ -97,27 +91,25 @@ def execute(query, params=()):
     conn.close()
     return last_id
 
-# -------------------------------
-# Mock data (kept for placeholders; DB will be used for auth)
-# -------------------------------
+# --- Mock data (kept if DB empty) ---
 jobs = [
     {'id': 1, 'title': 'Senior Software Engineer', 'department': 'IT', 'location': 'Remote',
      'experience': '5+ years', 'skills': ['Python', 'Flask'],
      'description': 'Develop scalable systems.'},
-    {'id': 2, 'title': 'Marketing Manager', 'department': 'Marketing', 'location': 'NY',
-     'experience': '3+ years', 'skills': ['SEO'],
-     'description': 'Lead marketing campaigns.'}
 ]
 
-# If you want to seed applications from DB later, replace with DB queries.
-applications = [
-    {'id': 101, 'job_title': 'Senior Software Engineer', 'applicant_name': 'Alice Johnson',
-     'department': 'IT', 'status': 'Interview Scheduled', 'date_applied': 'Oct 15, 2025',
-     'resume_file': 'alice_resume.pdf'},
-    {'id': 102, 'job_title': 'Marketing Manager', 'applicant_name': 'Bob Williams',
-     'department': 'Marketing', 'status': 'Under Review', 'date_applied': 'Oct 14, 2025',
-     'resume_file': 'bob_resume.pdf'}
-]
+# ---- helpers for route guards ----
+def require_admin():
+    if not session.get('is_admin'):
+        return redirect('/admin/login')
+
+def require_hr():
+    if not session.get('is_hr'):
+        return redirect('/login')
+
+def require_user():
+    if 'email' not in session or session.get('is_hr') or session.get('is_admin'):
+        return redirect('/login')
 
 # -------------------------------
 # Routes
@@ -125,7 +117,6 @@ applications = [
 @app.route('/')
 def index():
     return render_template('index.html')
-
 
 @app.route('/jobs')
 def jobs_page():
@@ -139,16 +130,13 @@ def job_detail(job_id):
         abort(404)
     return render_template('job-detail.html', job=job)
 
+
 @app.route('/login', methods=['GET'])
 def login_page():
     return render_template('login.html')
 
-# This is the login API used by the login.html client-side script.
-# It accepts JSON (fetch from login.html) or regular form post for flexibility.
-
 @app.route('/api/login', methods=['POST'])
 def login():
-    # Accept JSON (fetch) or form-encoded
     data = request.get_json(silent=True) or request.form
     email = (data.get('email') or '').strip()
     password = (data.get('password') or '').strip()
@@ -156,33 +144,37 @@ def login():
     if not email or not password:
         return jsonify({'error': 'Email and password required'}), 400
 
-    # 1) Check HR table
-    hr_row = None
-    try:
-        hr_row = fetch_one("SELECT * FROM hr WHERE email = %s AND password = %s", (email, password))
-    except Exception as e:
-        print("DB error during HR lookup:", e)
-        return jsonify({'error': 'DB error during auth'}), 500
-
+    # HR
+    hr_row = fetch_one("SELECT * FROM hr WHERE email = %s AND password = %s", (email, password))
     if hr_row:
         session['is_hr'] = True
         session['email'] = email
         return jsonify({'redirect': url_for('dashboard_hr')})
 
-    # 2) Check users table (regular user)
-    user_row = None
-    try:
-        user_row = fetch_one("SELECT * FROM users WHERE email = %s AND password = %s", (email, password))
-    except Exception as e:
-        print("DB error during user lookup:", e)
-        return jsonify({'error': 'DB error during auth'}), 500
+    # User
 
+    user_row = fetch_one("SELECT * FROM users WHERE email = %s AND password = %s", (email, password))
     if user_row:
         session['is_hr'] = False
+        session['is_admin'] = False
         session['email'] = email
+        session['user_id'] = user_row['id']
+        session['username'] = user_row['username']
+
+        # user-specific table
+        session['user_table'] = f"user_{user_row['id']}_activity"
+
         return jsonify({'redirect': url_for('dashboard_user')})
 
-    # No match
+
+    # Admin
+    admin_row = fetch_one("SELECT admin_id FROM admin WHERE email = %s AND password = %s", (email, password))
+    if admin_row:
+        session['is_admin'] = True
+        session['admin_id'] = admin_row['admin_id']
+        session['admin_email'] = email
+        return jsonify({'redirect': url_for('admin_dashboard')})
+
     return jsonify({'error': 'Invalid credentials'}), 401
 
 @app.route('/apply', methods=['POST'])
@@ -212,10 +204,17 @@ def apply_job():
         file.save(save_path)
 
         # INSERT INTO DATABASE
-        execute("""
-            INSERT INTO applications (job_id, applicant_name, email, phone, cover_letter, resume_file)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """, (job_id, name, email, phone, cover_letter, unique_name))
+        job_data = fetch_one("SELECT id, hr_id FROM jobs WHERE id=%s", (job_id,))
+
+        # Insert into user's private table
+        user_table = session.get('user_table')
+
+        execute(f"""
+            INSERT INTO {user_table} (job_id, status, resume_file, date_applied)
+            VALUES (%s, %s, %s, NOW())
+            """, (job_id, "Pending", unique_name))
+
+
 
         return jsonify({'message': 'Application submitted successfully!'})
 
@@ -225,35 +224,201 @@ def apply_job():
 
 @app.route('/dashboard/hr')
 def dashboard_hr():
-    if not session.get('is_hr'):
-        return redirect(url_for('login_page'))
+    require_hr()
 
-    # Fetch job count and application count
-    job_rows = fetch_all("SELECT COUNT(*) AS total FROM jobs")
-    application_rows = fetch_all("SELECT COUNT(*) AS total FROM applications")
+    hr_email = session.get('email')
+    hr_row = fetch_one("SELECT id, name FROM hr WHERE email=%s", (hr_email,))
+    hr_id = hr_row['id']
 
-    dashboard_data = {
-        'total_openings': job_rows[0]['total'],
-        'total_applications': application_rows[0]['total'],
-        'interviews': 45,
-        'hired': 8
-    }
+    # Count only jobs created by this HR
+    total_jobs = fetch_one(
+        "SELECT COUNT(*) AS cnt FROM jobs WHERE hr_id=%s", (hr_id,)
+    )['cnt']
 
-    # Fetch latest applications from DB
+    # Applications belonging to this HR’s jobs
+    total_applications = fetch_one("""
+        SELECT COUNT(*) AS cnt
+        FROM applications
+        WHERE hr_id=%s
+    """, (hr_id,))['cnt']
+
+    # Interviews scheduled for this HR
+    interviews = fetch_one("""
+        SELECT COUNT(*) AS cnt
+        FROM applications
+        WHERE hr_id=%s AND status='Interview Scheduled'
+    """, (hr_id,))['cnt']
+
+    # Hired candidates
+    hired = fetch_one("""
+        SELECT COUNT(*) AS cnt
+        FROM applications
+        WHERE hr_id=%s AND status='Hired'
+    """, (hr_id,))['cnt']
+
+    # Fetch latest applications for this HR
     applications = fetch_all("""
         SELECT a.*, j.title AS job_title, j.department
         FROM applications a
         JOIN jobs j ON a.job_id = j.id
+        WHERE a.hr_id=%s
         ORDER BY a.date_applied DESC
         LIMIT 10
-    """)
+    """, (hr_id,))
 
-    return render_template('dashboard_hr.html',
-                           data=dashboard_data,
-                           applications=applications,
-                           user_email=session.get('email'))
+    dashboard_data = {
+        'total_openings': total_jobs,
+        'total_applications': total_applications,
+        'interviews': interviews,
+        'hired_candidates': hired
+    }
 
-#Hr jobs route
+    return render_template(
+        'dashboard_hr.html',
+        data=dashboard_data,
+        applications=applications,
+        user_email=hr_email
+    )
+
+# ------------------------
+# Admin routes
+# ------------------------
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    if request.method == 'POST':
+        email = request.form['email']
+        password = request.form['password']
+        admin = fetch_one("SELECT admin_id, name, email FROM admin WHERE email = %s AND password = %s", (email, password))
+        if admin:
+            session['is_admin'] = True
+            session['admin_id'] = admin['admin_id']
+            session['admin_email'] = admin['email']
+            return redirect(url_for('admin_dashboard'))
+        else:
+            return render_template('admin_login.html', error="Invalid credentials")
+    return render_template('admin_login.html')
+
+@app.route('/admin/dashboard')
+def admin_dashboard():
+    if not session.get('is_admin'):
+        return redirect(url_for('admin_login'))
+
+    # ------------ Search & Filters ------------
+    search = request.args.get("search", "").strip()
+    department = request.args.get("department", "").strip()
+    page = int(request.args.get("page", 1))
+    per_page = 5
+    offset = (page - 1) * per_page
+
+    filters = []
+    params = []
+
+    if search:
+        filters.append("(name LIKE %s OR email LIKE %s)")
+        params += [f"%{search}%", f"%{search}%"]
+
+    if department:
+        filters.append("department = %s")
+        params.append(department)
+
+    where_clause = "WHERE " + " AND ".join(filters) if filters else ""
+
+    # Paginated query
+    hr_list = fetch_all(
+        f"SELECT id, name, department, email FROM hr {where_clause} LIMIT %s OFFSET %s",
+        params + [per_page, offset]
+    )
+
+    # Next page availability
+    next_count = fetch_all(
+        f"SELECT COUNT(*) AS c FROM hr {where_clause}",
+        params
+    )[0]['c']
+    has_next = next_count > page * per_page
+
+    # Hired & pending stats
+    hired_rows = fetch_all("SELECT hr_id, COUNT(*) AS hired_count FROM applications WHERE status='Hired' GROUP BY hr_id")
+    pending_rows = fetch_all("SELECT hr_id, COUNT(*) AS pending_count FROM applications WHERE status='Interview Scheduled' GROUP BY hr_id")
+
+    hired_data = {r['hr_id']: r['hired_count'] for r in hired_rows}
+    pending_data = {r['hr_id']: r['pending_count'] for r in pending_rows}
+
+    return render_template(
+        "dashboard_admin.html",
+        hr_list=hr_list,
+        hired=hired_data,
+        pending=pending_data,
+        search=search,
+        department=department,
+        page=page,
+        has_next=has_next
+    )
+
+
+# Add HR (
+@app.route('/admin/hr/add', methods=['POST'])
+def admin_add_hr():
+    name = request.form['name']
+    dept = request.form['department']
+    email = request.form['email']
+    password = request.form['password']
+    # Check user table & admin table also
+    user_exists = fetch_one("SELECT id FROM users WHERE email=%s", (email,))
+    admin_exists = fetch_one("SELECT admin_id FROM admin WHERE email=%s", (email,))
+
+    if user_exists or admin_exists:
+        return redirect(url_for('admin_dashboard', error="Email already used by another account"))
+
+    # Duplicate email check
+    exists = fetch_one("SELECT id FROM hr WHERE email=%s", (email,))
+    if exists:
+        return redirect(url_for('admin_dashboard', error="Email already exists"))
+
+    execute("""
+        INSERT INTO hr (name, department, email, password)
+        VALUES (%s, %s, %s, %s)
+    """, (name, dept, email, password))
+
+    return redirect(url_for('admin_dashboard', success="HR added successfully"))
+
+# Edit HR 
+@app.route('/admin/hr/edit/<int:hr_id>', methods=['POST'])
+def admin_edit_hr(hr_id):
+    name = request.form['name']
+    dept = request.form['department']
+    email = request.form['email']
+    password = request.form['password']
+    # Check email exists in user table
+    user_exists = fetch_one("SELECT id FROM users WHERE email=%s AND id!=%s", (email, hr_id))
+    admin_exists = fetch_one("SELECT admin_id FROM admin WHERE email=%s", (email,))
+
+    if user_exists or admin_exists:
+     return redirect(url_for('admin_dashboard', error="Email belongs to another user/admin"))
+
+    # Email belongs to another HR?
+    exists = fetch_one("SELECT id FROM hr WHERE email=%s AND id!=%s", (email, hr_id))
+    if exists:
+        return redirect(url_for('admin_dashboard', error="Email already in use"))
+
+    # Update
+    if password.strip():
+        execute("""
+            UPDATE hr SET name=%s, department=%s, email=%s, password=%s
+            WHERE id=%s
+        """, (name, dept, email, password, hr_id))
+    else:
+        execute("""
+            UPDATE hr SET name=%s, department=%s, email=%s
+            WHERE id=%s
+        """, (name, dept, email, hr_id))
+
+    return redirect(url_for('admin_dashboard', success="HR updated successfully"))
+
+@app.route('/admin/hr/delete/<int:hr_id>')
+def admin_delete_hr(hr_id):
+    execute("DELETE FROM hr WHERE id = %s", (hr_id,))
+    return redirect(url_for('admin_dashboard'))
+
 
 @app.route('/hr/jobs/add')
 def hr_add_job():
@@ -266,6 +431,10 @@ def hr_add_job():
 def hr_add_job_post():
     if not session.get('is_hr'):
         return redirect(url_for('login_page'))
+    hr_email = session.get('email')
+    hr_row = fetch_one("SELECT id FROM hr WHERE email=%s", (hr_email,))
+    hr_id = hr_row['id']
+
 
     title = request.form['title']
     department = request.form['department']
@@ -277,9 +446,9 @@ def hr_add_job_post():
     end_date = request.form['end_date']
 
     execute("""
-        INSERT INTO jobs (title, department, location, experience, skills, description, hiring_start, hiring_end)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-    """, (title, department, location, experience, skills, description, start_date, end_date))
+        INSERT INTO jobs (hr_id, title, department, location, experience, skills, description, hiring_start, hiring_end)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """, (hr_id,title, department, location, experience, skills, description, start_date, end_date))
 
     return redirect(url_for('hr_jobs_manage'))
 
@@ -361,30 +530,100 @@ def update_status(app_id):
 
     new_status = request.form.get('status')
 
-    execute("UPDATE applications SET status = %s WHERE id = %s", (new_status, app_id))
+    hr_email = session.get('email')
+    hr_row = fetch_one("SELECT id FROM hr WHERE email=%s", (hr_email,))
+    hr_id = hr_row['id'] if hr_row else None
+
+    execute("UPDATE applications SET status=%s, hr_id=%s WHERE id=%s",
+            (new_status, hr_id, app_id))
 
     return redirect(url_for('dashboard_hr'))
+
+#Admin analytics
+@app.route('/admin/analytics/data')
+def admin_analytics_data():
+    if not session.get('is_admin'):
+        return jsonify({"error": "Unauthorized"}), 403
+
+    rows = fetch_all("""
+        SELECT hr_id,
+               SUM(CASE WHEN status='Hired' THEN 1 ELSE 0 END) AS hired,
+               SUM(CASE WHEN status='Interview Scheduled' THEN 1 ELSE 0 END) AS pending
+        FROM applications
+        GROUP BY hr_id
+    """)
+
+    return jsonify(rows)
+
+
+#Register
+
+@app.route('/register', methods=['GET'])
+def register_page():
+    return render_template('register.html')
+
+@app.route('/api/register', methods=['POST'])
+def register_user():
+    data = request.get_json(silent=True) or request.form
+
+    username = data.get("username", "").strip()
+    email = data.get("email", "").strip()
+    password = data.get("password", "").strip()
+    # Check if email exists in users OR hr OR admin
+    exists_user = fetch_one("SELECT id FROM users WHERE email=%s", (email,))
+    exists_hr = fetch_one("SELECT id FROM hr WHERE email=%s", (email,))
+    exists_admin = fetch_one("SELECT admin_id FROM admin WHERE email=%s", (email,))
+
+    if exists_user or exists_hr or exists_admin:
+        return jsonify({"error": "Email already in use"}), 400
+
+    if not username or not email or not password:
+        return jsonify({"error": "All fields are required"}), 400
+
+    exists = fetch_one("SELECT id FROM users WHERE email=%s", (email,))
+    if exists:
+        return jsonify({"error": "Email already exists"}), 400
+
+    # Insert into main users table
+    user_id = execute("""
+        INSERT INTO users (username, email, password)
+        VALUES (%s, %s, %s)
+    """, (username, email, password))
+
+    # Create private table for the user
+    table_name = f"user_{user_id}_activity"
+
+    execute(f"""
+        CREATE TABLE {table_name} (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            job_id INT,
+            status VARCHAR(50),
+            resume_file VARCHAR(255),
+            date_applied DATETIME
+        );
+    """)
+
+    return jsonify({"message": "Account created successfully!", "redirect": "/login"})
 
 
 #User Dashboard
 @app.route('/dashboard/user')
 def dashboard_user():
-    if 'email' not in session or session.get('is_hr'):
-        return redirect(url_for('login_page'))
+    require_user()
 
     user_email = session['email']
+    table_name = session['user_table']
 
-    user_apps = fetch_all("""
-        SELECT applications.id AS app_id,
-               applications.status,
-               applications.resume_file,
-               jobs.title,
-               jobs.department
-        FROM applications
-        JOIN jobs ON applications.job_id = jobs.id
-        WHERE applications.email = %s
-        ORDER BY applications.id DESC
-    """, (user_email,))
+    user_apps = fetch_all(f"""
+        SELECT a.id AS app_id,
+               a.status,
+               a.resume_file,
+               j.title,
+               j.department
+        FROM {table_name} a
+        JOIN jobs j ON a.job_id = j.id
+        ORDER BY a.id DESC
+    """)
 
     return render_template("dashboard_user.html",
                            applications=user_apps,
@@ -491,14 +730,12 @@ def ws_user(ws, app_id):
                 }))
             else:
                 pending_ice.setdefault(app_id, []).append(data["ice"])
+
+
 @app.route('/logout')
 def logout():
     session.clear()
     return redirect(url_for('login_page'))
 
-
-# Run
 if __name__ == '__main__':
- app.run(host="0.0.0.0", port=5000, debug=True)
-
-
+    app.run(host="0.0.0.0", port=5000, debug=True)

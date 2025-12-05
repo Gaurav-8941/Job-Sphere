@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Edit HR</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<div class="container mt-5">
+
+    <h3>Edit HR Details</h3>
+
+    <!-- Edit HR Button (opens modal) -->
+<button class="btn btn-sm btn-outline-secondary" 
+        data-bs-toggle="modal" 
+        data-bs-target="#editModal{{ hr['id'] }}">
+    Edit
+</button>
+
+<!-- Edit Modal -->
+<div class="modal fade" id="editModal{{ hr['id'] }}" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+
+      <form method="POST" action="/admin/hr/edit/{{ hr['id'] }}">
+
+        <div class="modal-header">
+          <h5 class="modal-title">Edit HR – {{ hr['name'] }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+
+        <div class="modal-body">
+          
+          <div class="mb-3">
+            <label>Name</label>
+            <input class="form-control" name="name" value="{{ hr['name'] }}">
+          </div>
+
+          <div class="mb-3">
+            <label>Department</label>
+            <input class="form-control" name="department" value="{{ hr['department'] }}">
+          </div>
+
+          <div class="mb-3">
+            <label>Email</label>
+            <input class="form-control" name="email" value="{{ hr['email'] }}">
+          </div>
+
+          <div class="mb-3">
+            <label>Password</label>
+            <input class="form-control" type="password" name="password" placeholder="Enter new password">
+            <small class="text-muted">Leave blank to keep current password</small>
+          </div>
+
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-primary">Save Changes</button>
+        </div>
+
+      </form>
+
+    </div>
+  </div>
+</div>
+</div>
+</body>
+</html>

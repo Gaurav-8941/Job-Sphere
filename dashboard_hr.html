@@ -120,7 +120,7 @@
                         <div class="card dashboard-card text-center">
                             <div class="card-body">
                                 <h5 class="card-title">Interviews</h5>
-                                <h2 class="text-warning">45</h2> <!-- static for now -->
+                                <h2 class="text-warning">{{ data.interviews }}</h2>
                             </div>
                         </div>
                     </div>
@@ -176,8 +176,8 @@
                                                     </span>
                                                 </td>
 
-                                                <td>{{ app.date_applied}}
-                                                </td>
+                                                <td>{{ app.date_applied.strftime('%d %b %Y') }}</td>
+
                                                 
                                              <td>
                                                 {% if app.resume_file %}

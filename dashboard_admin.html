@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Dashboard – Job Sphere</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        .password-toggle {
+            position:absolute;
+            right:12px;
+            top:9px;
+            cursor:pointer;
+        }
+    </style>
+</head>
+
+<body class="bg-light">
+<div class="container mt-4">
+
+    <h2 class="mb-4">Admin Dashboard</h2>
+
+    <!-- ================================
+         SEARCH + FILTER + PAGINATION BAR
+    ================================== -->
+    <form method="GET" action="/admin/dashboard" class="row g-2 mb-3">
+
+        <div class="col-md-4">
+            <input type="text" name="search" value="{{ search }}"
+                   class="form-control" placeholder="Search HR by name or email…">
+        </div>
+
+        <div class="col-md-3">
+            <select class="form-control" name="department">
+                <option value="">All Departments</option>
+                <option value="IT" {% if department=='IT' %}selected{% endif %}>IT</option>
+                <option value="HR" {% if department=='HR' %}selected{% endif %}>HR</option>
+                <option value="Finance" {% if department=='Finance' %}selected{% endif %}>Finance</option>
+                <option value="Sales" {% if department=='Sales' %}selected{% endif %}>Sales</option>
+            </select>
+        </div>
+
+        <div class="col-md-2">
+            <button class="btn btn-primary w-100">Filter</button>
+        </div>
+
+    </form>
+
+
+    <!-- ================================
+                ANALYTICS CHART
+    ================================== -->
+    <div class="card mb-4">
+        <div class="card-header bg-dark text-white">HR Analytics</div>
+        <div class="card-body">
+            <canvas id="analyticsChart" height="120"></canvas>
+        </div>
+    </div>
+
+
+    <!-- ================================
+                HR TABLE
+    ================================== -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">HR Overview</div>
+
+        <div class="card-body">
+            <table class="table table-striped">
+                <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Department</th>
+                    <th>Hired</th>
+                    <th>Pending Interviews</th>
+                    <th>Actions</th>
+                </tr>
+                </thead>
+
+                <tbody>
+                {% for hr in hr_list %}
+                <tr>
+                    <td>{{ hr.name }}</td>
+                    <td>{{ hr.department }}</td>
+                    <td>{{ hired.get(hr.id,0) }}</td>
+                    <td>{{ pending.get(hr.id,0) }}</td>
+                    <td>
+
+                        <!-- EDIT BUTTON -->
+                        <button class="btn btn-sm btn-outline-secondary"
+                                data-bs-toggle="modal"
+                                data-bs-target="#editModal{{ hr.id }}">
+                            Edit
+                        </button>
+
+                        <!-- DELETE -->
+                        <a href="/admin/hr/delete/{{ hr.id }}"
+                           onclick="return confirm('Delete this HR?')"
+                           class="btn btn-danger btn-sm">Delete</a>
+                    </td>
+                </tr>
+
+
+                <!-- ================================
+                       EDIT MODAL FOR EACH HR
+                ================================== -->
+                <div class="modal fade" id="editModal{{ hr.id }}">
+                  <div class="modal-dialog">
+                    <div class="modal-content">
+
+                      <form method="POST" action="/admin/hr/edit/{{ hr.id }}">
+
+                        <div class="modal-header">
+                          <h5 class="modal-title">Edit HR – {{ hr.name }}</h5>
+                          <button class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+
+                        <div class="modal-body">
+
+                          <div class="mb-3">
+                              <label>Name</label>
+                              <input name="name" class="form-control" value="{{ hr.name }}" required>
+                          </div>
+
+                          <div class="mb-3">
+                              <label>Department</label>
+                              <input name="department" class="form-control" value="{{ hr.department }}" required>
+                          </div>
+
+                          <div class="mb-3">
+                              <label>Email</label>
+                              <input name="email" type="email" class="form-control" value="{{ hr.email }}" required>
+                          </div>
+
+                          <div class="mb-3 position-relative">
+                              <label>New Password (Optional)</label>
+                              <input name="password" type="password" class="form-control password-field">
+                              <span class="password-toggle">👁️</span>
+                          </div>
+
+                        </div>
+
+                        <div class="modal-footer">
+                          <button class="btn btn-primary">Save</button>
+                        </div>
+
+                      </form>
+
+                    </div>
+                  </div>
+                </div>
+
+                {% endfor %}
+                </tbody>
+
+            </table>
+        </div>
+    </div>
+
+    <!-- ================================
+                PAGINATION
+    ================================== -->
+    <nav>
+        <ul class="pagination">
+            {% if page > 1 %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page-1 }}&search={{ search }}&department={{ department }}">« Prev</a>
+            </li>
+            {% endif %}
+
+            <li class="page-item active">
+                <span class="page-link">{{ page }}</span>
+            </li>
+
+            {% if has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page+1 }}&search={{ search }}&department={{ department }}">Next »</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+
+
+    <!-- ================================
+                ADD HR
+    ================================== -->
+    <div class="card">
+        <div class="card-header bg-dark text-white">Add New HR</div>
+
+        <div class="card-body">
+            <form method="POST" action="/admin/hr/add">
+
+                <div class="mb-3">
+                    <label>Name</label>
+                    <input name="name" class="form-control" required>
+                </div>
+
+                <div class="mb-3">
+                    <label>Department</label>
+                    <input name="department" class="form-control" required>
+                </div>
+
+                <div class="mb-3">
+                    <label>Email</label>
+                    <input name="email" type="email" class="form-control" required>
+                </div>
+
+                <div class="mb-3 position-relative">
+                    <label>Password</label>
+                    <input name="password" type="password" class="form-control password-field" required>
+                    <span class="password-toggle">👁️</span>
+                </div>
+
+                <button class="btn btn-primary">Add HR</button>
+            </form>
+        </div>
+    </div>
+
+
+</div>
+
+<script>
+    // Password toggle
+    document.querySelectorAll(".password-toggle").forEach(btn => {
+        btn.addEventListener("click", () => {
+            let input = btn.previousElementSibling;
+            input.type = input.type === "password" ? "text" : "password";
+        });
+    });
+
+
+    // Load analytics chart
+    fetch("/admin/analytics/data")
+        .then(r => r.json())
+        .then(data => {
+            const labels = data.map(x => "HR ID " + x.hr_id);
+            const hired = data.map(x => x.hired);
+            const pending = data.map(x => x.pending);
+
+            new Chart(document.getElementById('analyticsChart'), {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [
+                        { label:"Hired", data:hired, backgroundColor:"green" },
+                        { label:"Pending", data:pending, backgroundColor:"orange" }
+                    ]
+                }
+            });
+        });
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+</body>
+</html>
