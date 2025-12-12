@@ -22,9 +22,7 @@
 
     <h2 class="mb-4">Admin Dashboard</h2>
 
-    <!-- ================================
-         SEARCH + FILTER + PAGINATION BAR
-    ================================== -->
+    <!-- search, filer and pagn-->
     <form method="GET" action="/admin/dashboard" class="row g-2 mb-3">
 
         <div class="col-md-4">
@@ -60,9 +58,7 @@
     </div>
 
 
-    <!-- ================================
-                HR TABLE
-    ================================== -->
+    <!--Hr table-->
     <div class="card mb-4">
         <div class="card-header bg-primary text-white">HR Overview</div>
 
@@ -71,6 +67,7 @@
                 <thead>
                 <tr>
                     <th>Name</th>
+                    <th>Username</th>
                     <th>Department</th>
                     <th>Hired</th>
                     <th>Pending Interviews</th>
@@ -82,6 +79,7 @@
                 {% for hr in hr_list %}
                 <tr>
                     <td>{{ hr.name }}</td>
+                    <td>{{ hr.username }}</td>
                     <td>{{ hr.department }}</td>
                     <td>{{ hired.get(hr.id,0) }}</td>
                     <td>{{ pending.get(hr.id,0) }}</td>
@@ -101,10 +99,7 @@
                     </td>
                 </tr>
 
-
-                <!-- ================================
-                       EDIT MODAL FOR EACH HR
-                ================================== -->
+<!--EDIT MODAL FOR EACH HR-->
                 <div class="modal fade" id="editModal{{ hr.id }}">
                   <div class="modal-dialog">
                     <div class="modal-content">
@@ -121,6 +116,11 @@
                           <div class="mb-3">
                               <label>Name</label>
                               <input name="name" class="form-control" value="{{ hr.name }}" required>
+                          </div>
+
+                          <div class="mb-3">
+                            <label class="form-label">Username</label>
+                            <input type="text" class="form-control" name="username" value="{{ hr.username }}" required>
                           </div>
 
                           <div class="mb-3">
@@ -157,10 +157,7 @@
             </table>
         </div>
     </div>
-
-    <!-- ================================
-                PAGINATION
-    ================================== -->
+    <!--Pagingation-->
     <nav>
         <ul class="pagination">
             {% if page > 1 %}
@@ -195,6 +192,12 @@
                     <label>Name</label>
                     <input name="name" class="form-control" required>
                 </div>
+
+                <div class="mb-3">
+                 <label class="form-label">Username</label>
+                 <input type="text" class="form-control" name="username" required>
+                </div>
+
 
                 <div class="mb-3">
                     <label>Department</label>

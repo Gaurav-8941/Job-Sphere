@@ -33,7 +33,11 @@
 
         <div class="mb-3">
             <label class="form-label">Department</label>
-            <input type="text" name="department" class="form-control" value="{{ job.department }}" required>
+           <select class="form-select" name="department" required>
+            {% for dept in ['IT','Marketing','HR','Finance','Operations'] %}
+                <option value="{{ dept }}" {% if job.department == dept %}selected{% endif %}>{{ dept }}</option>
+            {% endfor %}
+        </select>
         </div>
 
         <div class="row">
