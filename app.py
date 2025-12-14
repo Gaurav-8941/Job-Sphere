@@ -228,10 +228,10 @@ def apply_job():
 
         # Insert into global HR applications table
         execute("""
-            INSERT INTO applications (user_id, job_id, hr_id, applicant_name, email,
-                                      status, resume_file, date_applied)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
-        """, (session['user_id'], job_id, hr_id, name, email, "Pending", unique_name))
+            INSERT INTO applications (job_id, hr_id, applicant_name, email, phone, cover_letter, resume_file, date_applied, status)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), %s)
+        """, (job_id, hr_id, name, email, phone, cover_letter, unique_name, "Pending"))
+
 
         return jsonify({'message': 'Application submitted successfully!'})
 
@@ -245,44 +245,56 @@ def dashboard_hr():
     require_hr()
 
     hr_email = session.get('email')
-    hr_row = fetch_one("SELECT id, username, name FROM hr WHERE email=%s", (hr_email,))
-    hr_id = hr_row['id']
 
-    # Count only jobs created by this HR
+    # Fix: include department in the SELECT
+    hr_row = fetch_one(
+        "SELECT id, username, name, department FROM hr WHERE email=%s",
+        (hr_email,)
+    )
+
+    if not hr_row:
+        # Safety: if somehow hr not found
+        return redirect(url_for('login_page'))
+
+    hr_id = hr_row['id']
+    hr_department = hr_row['department']
+
+    # Count only jobs in this HR’s department
     total_jobs = fetch_one(
-        "SELECT COUNT(*) AS cnt FROM jobs WHERE hr_id=%s", (hr_id,)
+        "SELECT COUNT(*) AS cnt FROM jobs WHERE department = %s",
+        (hr_department,)
     )['cnt']
 
-    # Applications belonging to this HR’s jobs
     total_applications = fetch_one("""
         SELECT COUNT(*) AS cnt
-        FROM applications
-        WHERE hr_id=%s
-    """, (hr_id,))['cnt']
+        FROM applications a
+        JOIN jobs j ON a.job_id = j.id
+        WHERE j.department = %s
+    """, (hr_department,))['cnt']
 
-    # Interviews scheduled for this HR
     interviews = fetch_one("""
         SELECT COUNT(*) AS cnt
-        FROM applications
-        WHERE hr_id=%s AND status='Interview Scheduled'
-    """, (hr_id,))['cnt']
+        FROM applications a
+        JOIN jobs j ON a.job_id = j.id
+        WHERE j.department = %s AND a.status='Interview Scheduled'
+    """, (hr_department,))['cnt']
 
-    # Hired candidates
     hired = fetch_one("""
         SELECT COUNT(*) AS cnt
-        FROM applications
-        WHERE hr_id=%s AND status='Hired'
-    """, (hr_id,))['cnt']
+        FROM applications a
+        JOIN jobs j ON a.job_id = j.id
+        WHERE j.department = %s AND a.status='Hired'
+    """, (hr_department,))['cnt']
 
-    # Fetch latest applications for this HR
+    # Fetch latest applications for this HR’s department
     applications = fetch_all("""
         SELECT a.*, j.title AS job_title, j.department
         FROM applications a
         JOIN jobs j ON a.job_id = j.id
-        WHERE a.hr_id=%s
+        WHERE j.department = %s
         ORDER BY a.date_applied DESC
         LIMIT 10
-    """, (hr_id,))
+    """, (hr_department,))
 
     dashboard_data = {
         'total_openings': total_jobs,
