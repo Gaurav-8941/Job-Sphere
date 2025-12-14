@@ -682,9 +682,7 @@ def video_call_user(app_id):
     return render_template("video_call_user.html", app_id=app_id)
 
 
-# -------------------------
-# HR WebSocket (sender)
-# -------------------------
+#HR WebSocket (caller)
 @sock.route('/ws/hr/<int:app_id>')
 def ws_hr(ws, app_id):
 
@@ -723,9 +721,9 @@ def ws_hr(ws, app_id):
                 }))
             else:
                 pending_ice.setdefault(app_id, []).append(data["ice"])
-# -------------------------
+
 # USER WebSocket (receiver)
-# -------------------------
+
 @sock.route('/ws/user/<int:app_id>')
 def ws_user(ws, app_id):
 
@@ -769,6 +767,11 @@ def ws_user(ws, app_id):
                 }))
             else:
                 pending_ice.setdefault(app_id, []).append(data["ice"])
+
+
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory(app.static_folder, 'favicon.ico')
 
 
 @app.route('/logout')
