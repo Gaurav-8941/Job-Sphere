@@ -1,57 +1,57 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Candidate Video Interview</title>
-    <style>
-        body { font-family: Arial; text-align: center; background: #f8f8f8; }
-        video { width: 40%; border-radius: 12px; margin: 10px; background: black; }
-    </style>
+    <title>User Video Interview</title>
 </head>
 <body>
 
-<h2>Interview Video Call</h2>
-<p id="status">Waiting for HR...</p>
+<h2>Candidate Call</h2>
 
-<div>
-    <video id="localVideo" autoplay muted playsinline></video>
-    <video id="remoteVideo" autoplay playsinline></video>
+<video id="localVideo" autoplay muted playsinline style="width: 300px; height: 200px; background: black;"></video>
+<video id="remoteVideo" autoplay playsinline style="width: 300px; height: 200px; background: black;"></video>
 
-</div>
+<button id="joinBtn" onclick="joinCall()" style="display:none;">Join Call</button>
 
 <script>
-let localStream, peerConnection;
-const config = {
-    iceServers: [
-        { urls: "stun:stun.l.google.com:19302" }
-    ]
-};
+const appId = "{{ app_id }}"; // Flask variable
 
-const localVideo = document.getElementById("localVideo");
-const remoteVideo = document.getElementById("remoteVideo");
-const socket = new WebSocket(`${location.protocol === 'https:' ? 'wss://' : 'ws://'}${location.host}/ws/user/${appId}`);
-let startBtn = document.getElementById("joinBtn");
-startBtn.style.display = "none"; // hide until offer received
+const socket = new WebSocket(
+    `${location.protocol === 'https:' ? 'wss://' : 'ws://'}${location.host}/ws/user/${appId}`
+);
+
+let peerConnection;
+let savedOffer;
+
+const joinBtn = document.getElementById("joinBtn");
+
+socket.onopen = () => {
+    console.log("User WebSocket connected");
+};
 
 socket.onmessage = async (event) => {
     const data = JSON.parse(event.data);
 
     if (data.type === "offer") {
-        console.log("Offer received");
-        startBtn.style.display = "block";  // show the join button
-        window.offer = data.offer;
+        console.log("Offer arrived");
+        savedOffer = data.offer;
+        joinBtn.style.display = "block"; // show join button
     }
-    if (data.type === "ice") {
-        if (peerConnection) {
-            await peerConnection.addIceCandidate(data.ice);
-        }
+
+    if (data.type === "ice" && peerConnection) {
+        await peerConnection.addIceCandidate(data.ice);
     }
 };
 
 async function joinCall() {
-    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    localVideo.srcObject = localStream;
+    joinBtn.disabled = true;
 
-    peerConnection = new RTCPeerConnection(config);
+    const localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    document.getElementById("localVideo").srcObject = localStream;
+
+    peerConnection = new RTCPeerConnection({
+        iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+    });
+
     localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
     peerConnection.onicecandidate = (event) => {
@@ -61,17 +61,15 @@ async function joinCall() {
     };
 
     peerConnection.ontrack = (event) => {
-        remoteVideo.srcObject = event.streams[0];
+        document.getElementById("remoteVideo").srcObject = event.streams[0];
     };
 
-    await peerConnection.setRemoteDescription(window.offer);
+    await peerConnection.setRemoteDescription(savedOffer);
     const answer = await peerConnection.createAnswer();
     await peerConnection.setLocalDescription(answer);
 
     socket.send(JSON.stringify({ type: "answer", answer }));
 }
 </script>
-
-
 </body>
 </html>

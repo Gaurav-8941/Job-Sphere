@@ -14,32 +14,20 @@
 <body>
 
 <h2>Video Interview</h2>
-<p id="status">Waiting for candidate...</p>
 
-<div>
-    <video id="localVideo" autoplay muted playsinline></video>
-    <video id="remoteVideo" autoplay playsinline></video>
+<video id="localVideo" autoplay muted playsinline style="width: 300px; height: 200px; background: black;"></video>
+<video id="remoteVideo" autoplay playsinline style="width: 300px; height: 200px; background: black;"></video>
 
-</div>
-
-<button onclick="startCall()">Start Video Call</button>
-<button class="btn" onclick="endCall()">End Call</button>
-
+<button onclick="startCall()">Start Call</button>
 
 <script>
-const appId = "{{ app_id }}";
+const appId = "{{ app_id }}"; // Flask variable
 
-let localStream, peerConnection;
-const config = {
-    iceServers: [
-        { urls: "stun:stun.l.google.com:19302" }
-    ]
-};
+const socket = new WebSocket(
+    `${location.protocol === 'https:' ? 'wss://' : 'ws://'}${location.host}/ws/hr/${appId}`
+);
+let peerConnection;
 
-const localVideo = document.getElementById("localVideo");
-const remoteVideo = document.getElementById("remoteVideo");
-
-const socket = new WebSocket(`${location.protocol === 'https:' ? 'wss://' : 'ws://'}${location.host}/ws/hr/${appId}`);
 socket.onopen = () => {
     console.log("HR WebSocket connected");
 };
@@ -48,6 +36,7 @@ socket.onmessage = async (event) => {
     const data = JSON.parse(event.data);
 
     if (data.type === "answer") {
+        console.log("Answer received");
         await peerConnection.setRemoteDescription(data.answer);
     }
     if (data.type === "ice") {
@@ -56,10 +45,13 @@ socket.onmessage = async (event) => {
 };
 
 async function startCall() {
-    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    localVideo.srcObject = localStream;
+    const localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    document.getElementById("localVideo").srcObject = localStream;
 
-    peerConnection = new RTCPeerConnection(config);
+    peerConnection = new RTCPeerConnection({
+        iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+    });
+
     localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
     peerConnection.onicecandidate = (event) => {
@@ -69,7 +61,7 @@ async function startCall() {
     };
 
     peerConnection.ontrack = (event) => {
-        remoteVideo.srcObject = event.streams[0];
+        document.getElementById("remoteVideo").srcObject = event.streams[0];
     };
 
     const offer = await peerConnection.createOffer();
@@ -78,7 +70,6 @@ async function startCall() {
     socket.send(JSON.stringify({ type: "offer", offer }));
 }
 </script>
-
 
 </body>
 </html>
