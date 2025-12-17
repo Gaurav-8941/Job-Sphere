@@ -245,20 +245,22 @@ def dashboard_hr():
     require_hr()
 
     hr_email = session.get('email')
-
-    # Fix: include department in the SELECT
+    
+    # Get HR information
     hr_row = fetch_one(
         "SELECT id, username, name, department FROM hr WHERE email=%s",
         (hr_email,)
     )
-
+    
     if not hr_row:
-        # Safety: if somehow hr not found
         return redirect(url_for('login_page'))
-
+    
     hr_id = hr_row['id']
     hr_department = hr_row['department']
-
+    
+    # Store hr_id in session for later use
+    session['hr_id'] = hr_id
+    
     # Count only jobs in this HR’s department
     total_jobs = fetch_one(
         "SELECT COUNT(*) AS cnt FROM jobs WHERE department = %s",
@@ -508,7 +510,18 @@ def hr_jobs_manage():
 def hr_edit_job(job_id):
     if not session.get('is_hr'):
         return redirect(url_for('login_page'))
+    
+    # Get HR ID from session
+    hr_id = session.get('hr_id')
+    if not hr_id:
+        # Fallback: query from database
+        hr_email = session.get('email')
+        hr_row = fetch_one("SELECT id FROM hr WHERE email=%s", (hr_email,))
+        hr_id = hr_row['id'] if hr_row else None
+    
     job = fetch_one("SELECT * FROM jobs WHERE id = %s AND hr_id=%s", (job_id, hr_id))
+    if not job:
+        abort(404)
     return render_template('hr_edit_job.html', job=job)
 
 
@@ -517,23 +530,33 @@ def hr_edit_job(job_id):
 def hr_edit_job_post(job_id):
     if not session.get('is_hr'):
         return redirect(url_for('login_page'))
-    title = request.form['title']
+    
+    # Get HR info
+    hr_email = session.get('email')
     hr_info = fetch_one("SELECT id, department FROM hr WHERE email=%s", (hr_email,))
+    
+    if not hr_info:
+        return redirect(url_for('login_page'))
+    
+    hr_id = hr_info['id']
     department = hr_info['department']
-
+    
+    # Get form data
+    title = request.form['title']
     location = request.form['location']
     experience = request.form['experience']
     skills = request.form['skills']
     description = request.form['description']
     start_date = request.form['start_date']
     end_date = request.form['end_date']
+    
     execute("""
         UPDATE jobs SET 
             title=%s, department=%s, location=%s, experience=%s,
             skills=%s, description=%s, hiring_start=%s, hiring_end=%s
-        WHERE id=%s
-    """, (title, department, location, experience, skills, description, start_date, end_date, job_id))
-
+        WHERE id=%s AND hr_id=%s
+    """, (title, department, location, experience, skills, description, start_date, end_date, job_id, hr_id))
+    
     return redirect(url_for('hr_jobs_manage'))
 
 
@@ -542,7 +565,14 @@ def hr_edit_job_post(job_id):
 def hr_delete_job(job_id):
     if not session.get('is_hr'):
         return redirect(url_for('login_page'))
-
+    
+    # Get HR ID from session
+    hr_id = session.get('hr_id')
+    if not hr_id:
+        hr_email = session.get('email')
+        hr_row = fetch_one("SELECT id FROM hr WHERE email=%s", (hr_email,))
+        hr_id = hr_row['id'] if hr_row else None
+    
     execute("DELETE FROM jobs WHERE id=%s AND hr_id=%s", (job_id, hr_id))
     return redirect(url_for('hr_jobs_manage'))
 
@@ -682,91 +712,123 @@ def video_call_user(app_id):
     return render_template("video_call_user.html", app_id=app_id)
 
 
-#HR WebSocket (caller)
+# HR WebSocket (caller)
 @sock.route('/ws/hr/<int:app_id>')
 def ws_hr(ws, app_id):
-
+    print(f" HR WebSocket connected for app_id: {app_id}")
     hr_sockets[app_id] = ws
-
+    
     # Notify candidate HR is online
     if app_id in user_sockets:
         try:
             user_sockets[app_id].send(json.dumps({"type": "hr_online"}))
-        except:
-            pass
+            print(f" Notified user {app_id} that HR is online")
+        except Exception as e:
+            print(f" Error notifying user: {e}")
+    else:
+        print(f" User not connected yet for app_id: {app_id}")
 
-    while True:
-        msg = ws.receive()
-        if not msg:
-            break
+    try:
+        while True:
+            msg = ws.receive()
+            if not msg:
+                print(f" HR WebSocket closed for app_id: {app_id}")
+                break
+            
+            print(f" HR received message for app_id {app_id}: {msg[:100]}...")
+            data = json.loads(msg)
+            
+            # HR SENDS OFFER
+            if data["type"] == "offer":
+                print(f" HR sending offer to user for app_id: {app_id}")
+                if app_id in user_sockets:
+                    user_sockets[app_id].send(json.dumps({
+                        "type": "offer",
+                        "offer": data["offer"]
+                    }))
+                    print(f" Offer forwarded to user {app_id}")
+                else:
+                    pending_offers[app_id] = data["offer"]
+                    print(f" Offer stored pending user connection for app_id: {app_id}")
+            
+            # HR ICE
+            elif data["type"] == "ice":
+                if app_id in user_sockets:
+                    user_sockets[app_id].send(json.dumps({
+                        "type": "ice",
+                        "ice": data["ice"]
+                    }))
+                else:
+                    pending_ice.setdefault(app_id, []).append(data["ice"])
+    except Exception as e:
+        print(f" HR WebSocket error for app_id {app_id}: {e}")
+    finally:
+        hr_sockets.pop(app_id, None)
+        print(f" HR WebSocket cleaned up for app_id: {app_id}")
 
-        data = json.loads(msg)
-
-        # HR SENDS OFFER
-        if data["type"] == "offer":
-            if app_id in user_sockets:
-                user_sockets[app_id].send(json.dumps({
-                    "type": "offer",
-                    "offer": data["offer"]
-                }))
-            else:
-                pending_offers[app_id] = data["offer"]
-
-        # HR ICE
-        if data["type"] == "ice":
-            if app_id in user_sockets:
-                user_sockets[app_id].send(json.dumps({
-                    "type": "ice",
-                    "ice": data["ice"]
-                }))
-            else:
-                pending_ice.setdefault(app_id, []).append(data["ice"])
 
 # USER WebSocket (receiver)
-
 @sock.route('/ws/user/<int:app_id>')
 def ws_user(ws, app_id):
-
+    print(f" USER WebSocket connected for app_id: {app_id}")
     user_sockets[app_id] = ws
-
+    
     # Send pending events if user came late
     if app_id in pending_offers:
+        print(f" Sending pending offer to user {app_id}")
         ws.send(json.dumps({"type": "offer", "offer": pending_offers[app_id]}))
-
+        del pending_offers[app_id]
+    
     if app_id in pending_ice:
+        print(f" Sending {len(pending_ice[app_id])} pending ICE candidates to user {app_id}")
         for c in pending_ice[app_id]:
             ws.send(json.dumps({"type": "ice", "ice": c}))
-
+        del pending_ice[app_id]
+    
     # Notify HR that user joined
     if app_id in hr_sockets:
+        print(f" Notifying HR that user joined for app_id: {app_id}")
         hr_sockets[app_id].send(json.dumps({"type": "user_online"}))
+    
+    try:
+        while True:
+            msg = ws.receive()
+            if not msg:
+                print(f" USER WebSocket closed for app_id: {app_id}")
+                break
+            
+            print(f" USER received message for app_id {app_id}: {msg[:100]}...")
+            data = json.loads(msg)
+            
+            # USER SENDS ANSWER
+            if data["type"] == "answer":
+                print(f" User sending answer to HR for app_id: {app_id}")
+                if app_id in hr_sockets:
+                    hr_sockets[app_id].send(json.dumps({
+                        "type": "answer",
+                        "answer": data["answer"]
+                    }))
+                    print(f" Answer forwarded to HR {app_id}")
+                else:
+                    pending_answers[app_id] = data["answer"]
+                    print(f" Answer stored pending HR connection for app_id: {app_id}")
+            
+            # USER ICE
+            elif data["type"] == "ice":
+                if app_id in hr_sockets:
+                    hr_sockets[app_id].send(json.dumps({
+                        "type": "ice",
+                        "ice": data["ice"]
+                    }))
+                else:
+                    pending_ice.setdefault(app_id, []).append(data["ice"])
+    except Exception as e:
+        print(f" USER WebSocket error for app_id {app_id}: {e}")
+    finally:
+        user_sockets.pop(app_id, None)
+        print(f"USER WebSocket cleaned up for app_id: {app_id}")
 
-    while True:
-        msg = ws.receive()
-        if not msg:
-            break
 
-        data = json.loads(msg)
-
-        # USER SENDS ANSWER
-        if data["type"] == "answer":
-            if app_id in hr_sockets:
-                hr_sockets[app_id].send(json.dumps({
-                    "type": "answer",
-                    "answer": data["answer"]
-                }))
-            else:
-                pending_answers[app_id] = data["answer"]
-
-        # USER ICE
-        if data["type"] == "ice":
-            if app_id in hr_sockets:
-                hr_sockets[app_id].send(json.dumps({
-                    "type": "ice",
-                    "ice": data["ice"]
-                }))
-            else:
-                pending_ice.setdefault(app_id, []).append(data["ice"])
 
 
 @app.route('/favicon.ico')

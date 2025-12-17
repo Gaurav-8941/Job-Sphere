@@ -21,30 +21,44 @@
 <button onclick="startCall()">Start Call</button>
 
 <script>
-const appId = "{{ app_id }}"; // Flask variable
+const appId = "{{ app_id }}";
+const currentHost = window.location.host;
+const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+// Determine the correct WebSocket route based on the template (HR or User)
+const wsRole = window.location.pathname.includes('user') ? 'user' : 'hr';
+const wsUrl = `${wsProtocol}//${currentHost}/ws/${wsRole}/${appId}`;
 
-const socket = new WebSocket(
-    `${location.protocol === 'https:' ? 'wss://' : 'ws://'}${location.host}/ws/hr/${appId}`
-);
+console.log("Connecting to WebSocket:", wsUrl);
+const socket = new WebSocket(wsUrl);
+
 let peerConnection;
 
 socket.onopen = () => {
-    console.log("HR WebSocket connected");
+    console.log("✓ HR WebSocket connected");
+};
+
+socket.onerror = (err) => {
+    console.error("✗ HR WebSocket error", err);
 };
 
 socket.onmessage = async (event) => {
+    console.log(" HR received message:", event.data);
+
     const data = JSON.parse(event.data);
 
     if (data.type === "answer") {
-        console.log("Answer received");
+        console.log(" HR got answer", data.answer);
         await peerConnection.setRemoteDescription(data.answer);
     }
     if (data.type === "ice") {
+        console.log("HR got ICE candidate", data.ice);
         await peerConnection.addIceCandidate(data.ice);
     }
 };
 
 async function startCall() {
+    console.log("startCall invoked (HR)");
+
     const localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
     document.getElementById("localVideo").srcObject = localStream;
 
@@ -52,24 +66,29 @@ async function startCall() {
         iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
     });
 
-    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+    localStream.getTracks().forEach(track => {
+        peerConnection.addTrack(track, localStream);
+    });
 
     peerConnection.onicecandidate = (event) => {
         if (event.candidate) {
+            console.log(" HR sending ICE candidate", event.candidate);
             socket.send(JSON.stringify({ type: "ice", ice: event.candidate }));
         }
     };
 
     peerConnection.ontrack = (event) => {
+        console.log(" HR ontrack, remote stream arrived");
         document.getElementById("remoteVideo").srcObject = event.streams[0];
     };
 
     const offer = await peerConnection.createOffer();
+    console.log(" HR created offer", offer);
     await peerConnection.setLocalDescription(offer);
 
+    console.log(" HR sending offer over WebSocket");
     socket.send(JSON.stringify({ type: "offer", offer }));
 }
 </script>
-
 </body>
 </html>

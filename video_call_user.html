@@ -13,36 +13,49 @@
 <button id="joinBtn" onclick="joinCall()" style="display:none;">Join Call</button>
 
 <script>
-const appId = "{{ app_id }}"; // Flask variable
+const appId = "{{ app_id }}";
+const currentHost = window.location.host; 
+const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+// Determine the correct WebSocket route based on the template (HR or User)
+const wsRole = window.location.pathname.includes('user') ? 'user' : 'hr';
+const wsUrl = `${wsProtocol}//${currentHost}/ws/${wsRole}/${appId}`;
 
-const socket = new WebSocket(
-    `${location.protocol === 'https:' ? 'wss://' : 'ws://'}${location.host}/ws/user/${appId}`
-);
-
+console.log("Connecting to WebSocket:", wsUrl);
+const socket = new WebSocket(wsUrl);
 let peerConnection;
 let savedOffer;
 
 const joinBtn = document.getElementById("joinBtn");
+joinBtn.style.display = "none"; // hide until offer
 
 socket.onopen = () => {
-    console.log("User WebSocket connected");
+    console.log(" User WebSocket connected");
+};
+
+socket.onerror = (err) => {
+    console.error(" User WebSocket error", err);
 };
 
 socket.onmessage = async (event) => {
+    console.log(" User received message:", event.data);
+
     const data = JSON.parse(event.data);
 
     if (data.type === "offer") {
-        console.log("Offer arrived");
+        console.log(" Offer received by User", data.offer);
         savedOffer = data.offer;
         joinBtn.style.display = "block"; // show join button
     }
 
     if (data.type === "ice" && peerConnection) {
+        console.log(" User got ICE", data.ice);
         await peerConnection.addIceCandidate(data.ice);
     }
 };
 
 async function joinCall() {
+    console.log("🎬 joinCall invoked (User)");
+
     joinBtn.disabled = true;
 
     const localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -52,24 +65,33 @@ async function joinCall() {
         iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
     });
 
-    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+    localStream.getTracks().forEach(track => {
+        peerConnection.addTrack(track, localStream);
+    });
 
     peerConnection.onicecandidate = (event) => {
         if (event.candidate) {
+            console.log("User sending ICE candidate", event.candidate);
             socket.send(JSON.stringify({ type: "ice", ice: event.candidate }));
         }
     };
 
     peerConnection.ontrack = (event) => {
+        console.log(" User ontrack, remote stream arrived");
         document.getElementById("remoteVideo").srcObject = event.streams[0];
     };
 
+    console.log(" User setting remote description", savedOffer);
     await peerConnection.setRemoteDescription(savedOffer);
+
     const answer = await peerConnection.createAnswer();
+    console.log(" User created answer", answer);
     await peerConnection.setLocalDescription(answer);
 
+    console.log(" User sending answer over WebSocket");
     socket.send(JSON.stringify({ type: "answer", answer }));
 }
 </script>
+
 </body>
 </html>
