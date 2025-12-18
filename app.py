@@ -829,6 +829,17 @@ def ws_user(ws, app_id):
         print(f"USER WebSocket cleaned up for app_id: {app_id}")
 
 
+app.route('/static/<path:filename>')
+def static_files(filename):
+    return send_from_directory(app.static_folder, filename)
+
+app.route('/static/css/<path:filename>')
+def static_css_files(filename):
+    return send_from_directory(app.static_folder, f'css/{filename}')
+
+app.route('/static/js/<path:filename>')
+def static_js_files(filename):
+    return send_from_directory(app.static_folder, f'js/{filename}')
 
 
 @app.route('/favicon.ico')
