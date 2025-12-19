@@ -75,15 +75,13 @@
                 <div class="position-sticky pt-3">
                     <ul class="nav flex-column">
                         <li class="nav-item"><a class="nav-link active" href="#overview">Overview</a></li>
-<li class="nav-item">
-<a class="nav-link" href="{{ url_for('hr_add_job') }}">Post New Job</a>
-</li>
+                        <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('hr_add_job') }}">Post New Job</a>
+                        </li>
 
-<li class="nav-item">
-    <a class="nav-link" href="{{ url_for('hr_jobs_manage') }}">Manage Jobs</a>
-</li>
-
-
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('hr_jobs_manage') }}">Manage Jobs</a>
+                        </li>
                         <li class="nav-item"><a class="nav-link" href="#candidates">Candidates</a></li>
                         <li class="nav-item"><a class="nav-link" href="#interviews">Interviews</a></li>
                         <li class="nav-item"><a class="nav-link" href="#reports">Reports</a></li>
@@ -194,6 +192,17 @@
                                                     <span class="text-muted">No file</span>
                                                 {% endif %}
                                             </td>
+                                         <td>
+                                            <form method="POST" action="{{ url_for('update_status', app_id=app.id) }}">
+                                                <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                                                    <option value="Pending" {% if app.status=='Pending' %}selected{% endif %}>Pending</option>
+                                                    <option value="Under Review" {% if app.status=='Under Review' %}selected{% endif %}>Under Review</option>
+                                                    <option value="Interview Scheduled" {% if app.status=='Interview Scheduled' %}selected{% endif %}>Interview Scheduled</option>
+                                                    <option value="Hired" {% if app.status=='Hired' %}selected{% endif %}>Hired</option>
+                                                    <option value="Rejected" {% if app.status=='Rejected' %}selected{% endif %}>Rejected</option>
+                                                </select>
+                                            </form>
+                                        </td>   
                                         <td>
                                             <a href="{{ url_for('video_call', app_id=app.id) }}"
                                             class="btn btn-sm btn-outline-primary

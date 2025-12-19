@@ -18,7 +18,7 @@ const currentHost = window.location.host;
 const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 // Determine the correct WebSocket route based on the template (HR or User)
 const wsRole = window.location.pathname.includes('user') ? 'user' : 'hr';
-const wsUrl = `${wsProtocol}//${currentHost}/wss/${wsRole}/${appId}`;
+const wsUrl = `${wsProtocol}//${currentHost}/ws/${wsRole}/${appId}`;
 
 console.log("Connecting to WebSocket:", wsUrl);
 const socket = new WebSocket(wsUrl);

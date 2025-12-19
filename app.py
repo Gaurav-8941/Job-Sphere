@@ -186,16 +186,26 @@ def login():
 
     return jsonify({"error": "Invalid credentials"}), 401
 
-@app.route('/api/apply', methods=['POST'])
+
 @app.route('/apply', methods=['POST'])
 def apply_job():
+    # 1. FIRST CHECK: Is user logged in?
+    if not session.get('user_id'):
+        return jsonify({'error': 'You must be logged in to apply'}), 401
+    
     try:
+        # 2. Get form data
         job_id = request.form.get('job_id')
         name = request.form.get('name')
         email = request.form.get('email')
         phone = request.form.get('phone')
         cover_letter = request.form.get('cover_letter')
-
+    
+        # 3. Verify form email matches logged-in user
+        logged_in_email = session.get('email')
+        if email != logged_in_email:
+            return jsonify({'error': 'Email does not match your account'}), 400
+        
         # Resume upload
         if 'resume' not in request.files:
             return jsonify({'error': 'No resume uploaded'}), 400
@@ -213,28 +223,29 @@ def apply_job():
         file.save(file_path)
 
         # Fetch job → includes hr_id
-        job_row = fetch_one("SELECT id, hr_id FROM jobs WHERE id=%s", (job_id,))
+        job_row = fetch_one("SELECT hr_id FROM jobs WHERE id=%s", (job_id,))
         if not job_row:
             return jsonify({'error': 'Job not found'}), 400
-
+        
         hr_id = job_row["hr_id"]
-
-        # Insert into user's personal table
-        user_table = session.get('user_table')
-        execute(f"""
-            INSERT INTO {user_table} (job_id, status, resume_file, date_applied)
-            VALUES (%s, %s, %s, NOW())
-        """, (job_id, "Pending", unique_name))
-
-        # Insert into global HR applications table
-        execute("""
+        
+        # Insert into global applications table AND GET THE GLOBAL ID
+        global_app_id = execute("""
             INSERT INTO applications (job_id, hr_id, applicant_name, email, phone, cover_letter, resume_file, date_applied, status)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), %s)
-        """, (job_id, hr_id, name, email, phone, cover_letter, unique_name, "Pending"))
-
-
+            VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), 'Pending')
+        """, (job_id, hr_id, name, email, phone, cover_letter, unique_name))
+        
+        # Insert into user's private table USING SESSION USER_ID (NOT EMAIL LOOKUP)
+        user_id = session['user_id']  # From authenticated session
+        user_table = f"user_{user_id}_activity"
+        
+        execute(f"""
+            INSERT INTO {user_table} (job_id, global_app_id, status, resume_file, date_applied)
+            VALUES (%s, %s, %s, %s, NOW())
+        """, (job_id, global_app_id, "Pending", unique_name))
+        
         return jsonify({'message': 'Application submitted successfully!'})
-
+        
     except Exception as e:
         print("Error in apply_job:", e)
         return jsonify({'error': str(e)}), 500
@@ -261,7 +272,7 @@ def dashboard_hr():
     # Store hr_id in session for later use
     session['hr_id'] = hr_id
     
-    # Count only jobs in this HR’s department
+    # Count only jobs in this HR's department
     total_jobs = fetch_one(
         "SELECT COUNT(*) AS cnt FROM jobs WHERE department = %s",
         (hr_department,)
@@ -288,15 +299,21 @@ def dashboard_hr():
         WHERE j.department = %s AND a.status='Hired'
     """, (hr_department,))['cnt']
 
-    # Fetch latest applications for this HR’s department
+    # Fetch latest applications for this HR's department
     applications = fetch_all("""
-        SELECT a.*, j.title AS job_title, j.department
-        FROM applications a
-        JOIN jobs j ON a.job_id = j.id
-        WHERE j.department = %s
-        ORDER BY a.date_applied DESC
-        LIMIT 10
-    """, (hr_department,))
+        SELECT a.id,
+           a.applicant_name,
+           j.title,
+           j.department,
+           a.status,
+           a.date_applied,
+           a.resume_file
+    FROM applications a
+    JOIN jobs j ON a.job_id = j.id
+    WHERE j.department = %s
+    ORDER BY a.date_applied DESC
+    LIMIT 10
+""", (hr_department,))
 
     dashboard_data = {
         'total_openings': total_jobs,
@@ -475,7 +492,7 @@ def hr_add_job_post():
     title = request.form['title']
     hr_info = fetch_one("SELECT id, department FROM hr WHERE email=%s", (hr_email,))
     hr_id = hr_info['id']
-    department = hr_info['department']  # Force HR’s own department
+    department = hr_info['department']  # Force HR's own department
     location = request.form['location']
     experience = request.form['experience']
     skills = request.form['skills']
@@ -684,7 +701,7 @@ def dashboard_user():
     table_name = session['user_table']
 
     user_apps = fetch_all(f"""
-        SELECT a.id AS app_id,
+        SELECT a.global_app_id as app_id,  -- CHANGED THIS
                a.status,
                a.resume_file,
                j.title,
@@ -693,10 +710,8 @@ def dashboard_user():
         JOIN jobs j ON a.job_id = j.id
         ORDER BY a.id DESC
     """)
-
-    return render_template("dashboard_user.html",
-                           applications=user_apps,
-                           user_email=user_email)
+    
+    return render_template("dashboard_user.html", applications=user_apps, user_email=user_email)
 
 #Video call stuff
 @app.route("/video/<int:app_id>")
@@ -717,7 +732,8 @@ def video_call_user(app_id):
 def ws_hr(ws, app_id):
     print(f" HR WebSocket connected for app_id: {app_id}")
     hr_sockets[app_id] = ws
-    
+    print(f"DEBUG: Stored HR socket for app_id {app_id}. Total HR sockets: {list(hr_sockets.keys())}")
+        
     # Notify candidate HR is online
     if app_id in user_sockets:
         try:
@@ -772,7 +788,8 @@ def ws_hr(ws, app_id):
 def ws_user(ws, app_id):
     print(f" USER WebSocket connected for app_id: {app_id}")
     user_sockets[app_id] = ws
-    
+    print(f"DEBUG: Stored USER socket for app_id {app_id}. Total USER sockets: {list(user_sockets.keys())}")
+        
     # Send pending events if user came late
     if app_id in pending_offers:
         print(f" Sending pending offer to user {app_id}")
@@ -829,17 +846,6 @@ def ws_user(ws, app_id):
         print(f"USER WebSocket cleaned up for app_id: {app_id}")
 
 
-app.route('/static/<path:filename>')
-def static_files(filename):
-    return send_from_directory(app.static_folder, filename)
-
-app.route('/static/css/<path:filename>')
-def static_css_files(filename):
-    return send_from_directory(app.static_folder, f'css/{filename}')
-
-app.route('/static/js/<path:filename>')
-def static_js_files(filename):
-    return send_from_directory(app.static_folder, f'js/{filename}')
 
 
 @app.route('/favicon.ico')

@@ -79,23 +79,24 @@
         <p>{{ job.skills }}</p>
     </div>
 
-    <h4 class="mt-4 mb-3">Apply for this Job</h4>
+ <h4 class="mt-4 mb-3">Apply for this Job</h4>
 
-    <form action="{{ url_for('apply_job') }}" method="POST" enctype="multipart/form-data" id="applyForm">
-
+ {% if session.email and not session.is_hr %}
+    <!-- Show form for logged-in regular users -->
+    <form action="{{ url_for('apply_job') }}" method="POST" enctype="multipart/form-data" id="applyForm">     
         <input type="hidden" name="job_id" value="{{ job.id }}">
 
         <div class="row">
-            <div class="col-md-6 mb-3">
-                <label class="form-label">Full Name</label>
-                <input type="text" name="name" class="form-control" required>
-            </div>
-
-            <div class="col-md-6 mb-3">
-                <label class="form-label">Email</label>
-                <input type="email" name="email" class="form-control" required>
-            </div>
-        </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Full Name</label>
+                        <input type="text" name="name" class="form-control" required value="{{ session.username }}">
+                    </div>
+                    
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" name="email" class="form-control" required value="{{ session.email }}" readonly>
+                    </div>
+                </div>
 
         <div class="mb-3">
             <label class="form-label">Phone Number</label>
@@ -112,9 +113,19 @@
             <textarea name="cover_letter" class="form-control" rows="4"></textarea>
         </div>
 
-        <button class="btn btn-primary w-100">Submit Application</button>
+                <button class="btn btn-primary w-100">Submit Application</button>
     </form>
-</div>
+ {% elif session.is_hr %}
+    <div class="alert alert-info">
+        You are logged in as HR. Please use a regular user account to apply for jobs.
+    </div>
+ {% else %}
+    <div class="alert alert-warning">
+        <p>You must be logged in to apply for this job.</p>
+        <a href="{{ url_for('login_page') }}" class="btn btn-primary">Log In</a>
+        <a href="{{ url_for('register_page') }}" class="btn btn-outline-secondary">Register</a>
+    </div>
+ {% endif %}
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
