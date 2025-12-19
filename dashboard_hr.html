@@ -94,69 +94,98 @@
 
                 <h1 class="mb-4">HR Dashboard</h1>
 
-                <!-- Stats Overview -->
-                <div class="row mb-4" id="overview">
-                    <div class="col-md-3 mb-3">
-                        <div class="card dashboard-card text-center">
-                            <div class="card-body">
-                                <h5 class="card-title">Active Jobs</h5>
-                                <h2 class="text-primary">{{ data.total_openings }}</h2>
-                            </div>
-                        </div>
+                <!-- Enhanced Stats Section -->
+<div class="row mb-4" id="overview">
+    <div class="col-xl-3 col-md-6 mb-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body p-4">
+                <div class="d-flex align-items-center">
+                    <div class="bg-primary bg-opacity-10 rounded-circle p-3 me-3">
+                        <i class="bi bi-briefcase text-primary fs-4"></i>
                     </div>
-
-                    <div class="col-md-3 mb-3">
-                        <div class="card dashboard-card text-center">
-                            <div class="card-body">
-                                <h5 class="card-title">Total Applicants</h5>
-                                <h2 class="text-info">{{ data.total_applications }}</h2>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="col-md-3 mb-3">
-                        <div class="card dashboard-card text-center">
-                            <div class="card-body">
-                                <h5 class="card-title">Interviews</h5>
-                                <h2 class="text-warning">{{ data.interviews }}</h2>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="col-md-3 mb-3">
-                        <div class="card dashboard-card text-center">
-                            <div class="card-body">
-                                <h5 class="card-title">Hired</h5>
-                                <h2 class="text-success">{{ data.hired_candidates }}</h2>
-                            </div>
-                        </div>
+                    <div>
+                        <h6 class="text-muted mb-1">Active Jobs</h6>
+                        <h2 class="text-primary mb-0">{{ data.total_openings }}</h2>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
 
+    <div class="col-xl-3 col-md-6 mb-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body p-4">
+                <div class="d-flex align-items-center">
+                    <div class="bg-info bg-opacity-10 rounded-circle p-3 me-3">
+                        <i class="bi bi-people text-info fs-4"></i>
+                    </div>
+                    <div>
+                        <h6 class="text-muted mb-1">Total Applicants</h6>
+                        <h2 class="text-info mb-0">{{ data.total_applications }}</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body p-4">
+                <div class="d-flex align-items-center">
+                    <div class="bg-warning bg-opacity-10 rounded-circle p-3 me-3">
+                        <i class="bi bi-calendar-check text-warning fs-4"></i>
+                    </div>
+                    <div>
+                        <h6 class="text-muted mb-1">Interviews</h6>
+                        <h2 class="text-warning mb-0">{{ data.interviews }}</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body p-4">
+                <div class="d-flex align-items-center">
+                    <div class="bg-success bg-opacity-10 rounded-circle p-3 me-3">
+                        <i class="bi bi-award text-success fs-4"></i>
+                    </div>
+                    <div>
+                        <h6 class="text-muted mb-1">Hired</h6>
+                        <h2 class="text-success mb-0">{{ data.hired_candidates }}</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
                 <!-- Recent Applications -->
-                <div class="row">
-                    <div class="col-12">
-                        <div class="card">
-                            <div class="card-body">
-                                <h5 class="card-title">Recent Applications</h5>
-
-                                <div class="table-responsive">
-                                    <table class="table table-hover">
-                                        <thead>
-                                            <tr>
-                                                <th>Candidate</th>
-                                                <th>Position</th>
-                                                <th>Department</th>
-                                                <th>Status</th>
-                                                <th>Date</th>
-                                                <th>Resume</th>
-                                                <th>Video Call</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-
-                                            {% for app in applications %}
+<div class="row">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-0 py-3">
+                <h5 class="card-title mb-1">Recent Applications</h5>
+                <p class="text-muted small mb-0">Latest applications requiring your attention</p>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Candidate</th>
+                                <th>Position</th>
+                                <th>Department</th>
+                                <th>Status</th>
+                                <th>Date</th>
+                                <th>Resume</th>
+                                <th>Interview</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                               <tbody>
+                                 {% for app in applications %}
                                             <tr>
                                                 <td>{{ app.applicant_name }}</td>
                                                 <td>{{ app.job_title }}</td>
