@@ -228,6 +228,13 @@ def apply_job():
             return jsonify({'error': 'Job not found'}), 400
         
         hr_id = job_row["hr_id"]
+        user_id = session['user_id']  
+
+        # Insert into global applications table WITH user_id
+        global_app_id = execute("""
+            INSERT INTO applications (job_id, hr_id, user_id, applicant_name, email, phone, cover_letter, resume_file, date_applied, status)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), 'Pending')
+        """, (job_id, hr_id, user_id, name, email, phone, cover_letter, unique_name))
         
         # Insert into global applications table AND GET THE GLOBAL ID
         global_app_id = execute("""
@@ -620,11 +627,26 @@ def update_status(app_id):
     hr_row = fetch_one("SELECT id FROM hr WHERE email=%s", (hr_email,))
     hr_id = hr_row['id'] if hr_row else None
 
+    # 1. Update the applications table
     execute("UPDATE applications SET status=%s, hr_id=%s WHERE id=%s",
             (new_status, hr_id, app_id))
-
+    
+    # 2. Find which user table to update
+    # Get the user_id from applications table (we need to store this)
+    app_data = fetch_one("SELECT user_id, email FROM applications WHERE id=%s", (app_id,))
+    
+    if app_data and app_data['user_id']:
+        user_id = app_data['user_id']
+        user_table = f"user_{user_id}_activity"
+        
+        # 3. Update the user's private table
+        execute(f"""
+            UPDATE {user_table} 
+            SET status = %s 
+            WHERE global_app_id = %s
+        """, (new_status, app_id))
+    
     return redirect(url_for('dashboard_hr'))
-
 #Admin analytics
 @app.route('/admin/analytics/data')
 def admin_analytics_data():
@@ -700,17 +722,19 @@ def dashboard_user():
     user_email = session['email']
     table_name = session['user_table']
 
-    user_apps = fetch_all(f"""
-        SELECT a.global_app_id as app_id,  -- CHANGED THIS
-               a.status,
-               a.resume_file,
-               j.title,
-               j.department
-        FROM {table_name} a
+    user_apps = fetch_all("""
+        SELECT a.id as app_id,
+            a.status,
+            a.resume_file,
+            j.title,
+            j.department
+        FROM applications a
         JOIN jobs j ON a.job_id = j.id
-        ORDER BY a.id DESC
-    """)
-    
+        WHERE a.user_id = %s
+        ORDER BY a.date_applied DESC
+    """, (session['user_id'],))
+    print(f"DEBUG: User table: {table_name}")
+    print(f"DEBUG: User apps data: {user_apps}")
     return render_template("dashboard_user.html", applications=user_apps, user_email=user_email)
 
 #Video call stuff
