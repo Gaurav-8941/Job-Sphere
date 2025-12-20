@@ -6,6 +6,8 @@ from datetime import datetime
 import json
 import mysql.connector
 from mysql.connector import pooling
+import threading
+import time
 
 # Flask paths
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -27,6 +29,7 @@ user_sockets = {}
 pending_offers = {}
 pending_answers = {}
 pending_ice = {}
+pending_ice_hr = {}   # <-- add this line
 
 # Uploads
 app.config['UPLOAD_FOLDER'] = os.path.join(STATIC_DIR, 'uploads')
@@ -751,13 +754,26 @@ def video_call_user(app_id):
     return render_template("video_call_user.html", app_id=app_id)
 
 
+# --- WebSocket Keepalive Helper ---
+def ws_keepalive(ws, interval=20):
+    """Send ping messages to keep ngrok/host WebSocket alive."""
+    try:
+        while True:
+            ws.send(json.dumps({"type": "ping"}))
+            time.sleep(interval)
+    except Exception:
+        pass
+
 # HR WebSocket (caller)
 @sock.route('/ws/hr/<int:app_id>')
 def ws_hr(ws, app_id):
     print(f" HR WebSocket connected for app_id: {app_id}")
     hr_sockets[app_id] = ws
     print(f"DEBUG: Stored HR socket for app_id {app_id}. Total HR sockets: {list(hr_sockets.keys())}")
-        
+
+    # Start keepalive thread
+    threading.Thread(target=ws_keepalive, args=(ws,), daemon=True).start()
+
     # Notify candidate HR is online
     if app_id in user_sockets:
         try:
@@ -767,6 +783,16 @@ def ws_hr(ws, app_id):
             print(f" Error notifying user: {e}")
     else:
         print(f" User not connected yet for app_id: {app_id}")
+
+    # Deliver pending ICE from user to HR
+    if app_id in pending_ice_hr:
+        print(f" Sending {len(pending_ice_hr[app_id])} pending ICE candidates to HR {app_id}")
+        for c in pending_ice_hr[app_id]:
+            try:
+                ws.send(json.dumps({"type": "ice", "ice": c}))
+            except Exception as e:
+                print(f"Error sending pending ICE to HR: {e}")
+        del pending_ice_hr[app_id]
 
     try:
         while True:
@@ -793,13 +819,20 @@ def ws_hr(ws, app_id):
             
             # HR ICE
             elif data["type"] == "ice":
+                # Relay ICE to user or store pending
                 if app_id in user_sockets:
-                    user_sockets[app_id].send(json.dumps({
-                        "type": "ice",
-                        "ice": data["ice"]
-                    }))
+                    try:
+                        user_sockets[app_id].send(json.dumps({
+                            "type": "ice",
+                            "ice": data["ice"]
+                        }))
+                    except Exception as e:
+                        print(f"Error sending ICE to user: {e}")
                 else:
                     pending_ice.setdefault(app_id, []).append(data["ice"])
+            # Optionally handle pings/pongs
+            elif data["type"] == "ping":
+                continue
     except Exception as e:
         print(f" HR WebSocket error for app_id {app_id}: {e}")
     finally:
@@ -813,24 +846,34 @@ def ws_user(ws, app_id):
     print(f" USER WebSocket connected for app_id: {app_id}")
     user_sockets[app_id] = ws
     print(f"DEBUG: Stored USER socket for app_id {app_id}. Total USER sockets: {list(user_sockets.keys())}")
-        
+
+    # Start keepalive thread
+    threading.Thread(target=ws_keepalive, args=(ws,), daemon=True).start()
+
     # Send pending events if user came late
     if app_id in pending_offers:
-        print(f" Sending pending offer to user {app_id}")
-        ws.send(json.dumps({"type": "offer", "offer": pending_offers[app_id]}))
+        try:
+            ws.send(json.dumps({"type": "offer", "offer": pending_offers[app_id]}))
+        except Exception as e:
+            print(f"Error sending pending offer: {e}")
         del pending_offers[app_id]
-    
+
     if app_id in pending_ice:
         print(f" Sending {len(pending_ice[app_id])} pending ICE candidates to user {app_id}")
         for c in pending_ice[app_id]:
-            ws.send(json.dumps({"type": "ice", "ice": c}))
+            try:
+                ws.send(json.dumps({"type": "ice", "ice": c}))
+            except Exception as e:
+                print(f"Error sending pending ICE: {e}")
         del pending_ice[app_id]
-    
+
     # Notify HR that user joined
     if app_id in hr_sockets:
-        print(f" Notifying HR that user joined for app_id: {app_id}")
-        hr_sockets[app_id].send(json.dumps({"type": "user_online"}))
-    
+        try:
+            hr_sockets[app_id].send(json.dumps({"type": "user_online"}))
+        except Exception as e:
+            print(f"Error notifying HR: {e}")
+
     try:
         while True:
             msg = ws.receive()
@@ -857,18 +900,22 @@ def ws_user(ws, app_id):
             # USER ICE
             elif data["type"] == "ice":
                 if app_id in hr_sockets:
-                    hr_sockets[app_id].send(json.dumps({
-                        "type": "ice",
-                        "ice": data["ice"]
-                    }))
+                    try:
+                        hr_sockets[app_id].send(json.dumps({
+                            "type": "ice",
+                            "ice": data["ice"]
+                        }))
+                    except Exception as e:
+                        print(f"Error sending ICE to HR: {e}")
                 else:
-                    pending_ice.setdefault(app_id, []).append(data["ice"])
+                    pending_ice_hr.setdefault(app_id, []).append(data["ice"])
+            elif data["type"] == "ping":
+                continue
     except Exception as e:
         print(f" USER WebSocket error for app_id {app_id}: {e}")
     finally:
         user_sockets.pop(app_id, None)
         print(f"USER WebSocket cleaned up for app_id: {app_id}")
-
 
 
 

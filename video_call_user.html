@@ -10,6 +10,7 @@
 <video id="localVideo" autoplay muted playsinline style="width: 300px; height: 200px; background: black;"></video>
 <video id="remoteVideo" autoplay playsinline style="width: 300px; height: 200px; background: black;"></video>
 
+<div id="status" style="margin:10px;color:green;font-weight:bold;"></div>
 <button id="joinBtn" onclick="joinCall()" style="display:none;">Join Call</button>
 
 <script>
@@ -24,6 +25,8 @@ console.log("Connecting to WebSocket:", wsUrl);
 const socket = new WebSocket(wsUrl);
 let peerConnection;
 let savedOffer;
+
+const statusDiv = document.getElementById("status");
 
 const joinBtn = document.getElementById("joinBtn");
 joinBtn.style.display = "none"; // hide until offer
@@ -45,11 +48,16 @@ socket.onmessage = async (event) => {
         console.log(" Offer received by User", data.offer);
         savedOffer = data.offer;
         joinBtn.style.display = "block"; // show join button
+        statusDiv.textContent = "HR is calling. Click Join Call!";
     }
 
     if (data.type === "ice" && peerConnection) {
         console.log(" User got ICE", data.ice);
-        await peerConnection.addIceCandidate(data.ice);
+        try {
+            await peerConnection.addIceCandidate(data.ice);
+        } catch (e) {
+            console.error("Error adding ICE candidate:", e);
+        }
     }
 };
 
@@ -62,8 +70,26 @@ async function joinCall() {
     document.getElementById("localVideo").srcObject = localStream;
 
     peerConnection = new RTCPeerConnection({
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+        iceServers: [
+            { urls: "stun:stun.l.google.com:19302" },
+            // Free public TURN server for demo/testing (replace with your own for production)
+            { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" }
+        ]
     });
+
+    // Debug ICE connection state
+    peerConnection.oniceconnectionstatechange = () => {
+        console.log("ICE connection state:", peerConnection.iceConnectionState);
+        if (peerConnection.iceConnectionState === "connected") {
+            statusDiv.textContent = "Connected ✔";
+        }
+        if (peerConnection.iceConnectionState === "failed" || peerConnection.iceConnectionState === "disconnected") {
+            statusDiv.textContent = "Connection failed/disconnected.";
+        }
+    };
+    peerConnection.onsignalingstatechange = () => {
+        console.log("Signaling state:", peerConnection.signalingState);
+    };
 
     localStream.getTracks().forEach(track => {
         peerConnection.addTrack(track, localStream);
@@ -79,6 +105,7 @@ async function joinCall() {
     peerConnection.ontrack = (event) => {
         console.log(" User ontrack, remote stream arrived");
         document.getElementById("remoteVideo").srcObject = event.streams[0];
+        statusDiv.textContent = "Remote video received!";
     };
 
     console.log(" User setting remote description", savedOffer);

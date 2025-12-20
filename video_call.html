@@ -18,6 +18,7 @@
 <video id="localVideo" autoplay muted playsinline style="width: 300px; height: 200px; background: black;"></video>
 <video id="remoteVideo" autoplay playsinline style="width: 300px; height: 200px; background: black;"></video>
 
+<div id="status" style="margin:10px;color:green;font-weight:bold;"></div>
 <button onclick="startCall()">Start Call</button>
 
 <script>
@@ -32,6 +33,8 @@ console.log("Connecting to WebSocket:", wsUrl);
 const socket = new WebSocket(wsUrl);
 
 let peerConnection;
+
+const statusDiv = document.getElementById("status");
 
 socket.onopen = () => {
     console.log("HR WebSocket connected");
@@ -48,11 +51,19 @@ socket.onmessage = async (event) => {
 
     if (data.type === "answer") {
         console.log(" HR got answer", data.answer);
-        await peerConnection.setRemoteDescription(data.answer);
+        try {
+            await peerConnection.setRemoteDescription(data.answer);
+        } catch (e) {
+            console.error("Error setting remote description:", e);
+        }
     }
     if (data.type === "ice") {
         console.log("HR got ICE candidate", data.ice);
-        await peerConnection.addIceCandidate(data.ice);
+        try {
+            await peerConnection.addIceCandidate(data.ice);
+        } catch (e) {
+            console.error("Error adding ICE candidate:", e);
+        }
     }
 };
 
@@ -63,8 +74,26 @@ async function startCall() {
     document.getElementById("localVideo").srcObject = localStream;
 
     peerConnection = new RTCPeerConnection({
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+        iceServers: [
+            { urls: "stun:stun.l.google.com:19302" },
+            // Free public TURN server for demo/testing (replace with your own for production)
+            { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" }
+        ]
     });
+
+    // Debug ICE connection state
+    peerConnection.oniceconnectionstatechange = () => {
+        console.log("ICE connection state:", peerConnection.iceConnectionState);
+        if (peerConnection.iceConnectionState === "connected") {
+            statusDiv.textContent = "Connected ✔";
+        }
+        if (peerConnection.iceConnectionState === "failed" || peerConnection.iceConnectionState === "disconnected") {
+            statusDiv.textContent = "Connection failed/disconnected.";
+        }
+    };
+    peerConnection.onsignalingstatechange = () => {
+        console.log("Signaling state:", peerConnection.signalingState);
+    };
 
     localStream.getTracks().forEach(track => {
         peerConnection.addTrack(track, localStream);
@@ -80,6 +109,7 @@ async function startCall() {
     peerConnection.ontrack = (event) => {
         console.log(" HR ontrack, remote stream arrived");
         document.getElementById("remoteVideo").srcObject = event.streams[0];
+        statusDiv.textContent = "Remote video received!";
     };
 
     const offer = await peerConnection.createOffer();
