@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pending Admin Registrations – Manual Verification</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary sticky-top">
+    <div class="container">
+        <a class="navbar-brand" href="#"><strong>Job Sphere Manual Verification</strong></a>
+        <span class="text-white">{{ session.manual_verifier_email }}</span>
+    </div>
+</nav>
+<div class="container my-5">
+    <h2 class="mb-4">Pending Admin Registrations</h2>
+    {% if request.args.success %}
+        <div class="alert alert-success">{{ request.args.success }}</div>
+    {% elif request.args.error %}
+        <div class="alert alert-danger">{{ request.args.error }}</div>
+    {% endif %}
+    <div class="card shadow">
+        <div class="card-body">
+            <table class="table table-hover">
+                <thead class="table-primary">
+                    <tr>
+                        <th>ID</th>
+                        <th>Admin Name</th>
+                        <th>Admin Email</th>
+                        <th>Company Name</th>
+                        <th>Company Email</th>
+                        <th>Website</th>
+                        <th>Submitted</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for reg in pending %}
+                    <tr>
+                        <td>{{ reg.id }}</td>
+                        <td>{{ reg.admin_name }}</td>
+                        <td>{{ reg.admin_email }}</td>
+                        <td>{{ reg.company_name }}</td>
+                        <td>{{ reg.company_email }}</td>
+                        <td>{{ reg.company_website }}</td>
+                        <td>{{ reg.submitted_at }}</td>
+                        <td>
+                            <form method="post" action="{{ url_for('manual_verifier_approve', pending_id=reg.id) }}" style="display:inline-block">
+                                <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Approve this registration?');">Approve</button>
+                            </form>
+                            <form method="post" action="{{ url_for('manual_verifier_reject', pending_id=reg.id) }}" style="display:inline-block">
+                                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Reject this registration?');">Reject</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="8" class="text-center text-muted">No pending registrations.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+</body>
+</html>

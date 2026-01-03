@@ -227,7 +227,9 @@
                                                     <option value="Pending" {% if app.status=='Pending' %}selected{% endif %}>Pending</option>
                                                     <option value="Under Review" {% if app.status=='Under Review' %}selected{% endif %}>Under Review</option>
                                                     <option value="Interview Scheduled" {% if app.status=='Interview Scheduled' %}selected{% endif %}>Interview Scheduled</option>
-                                                    <option value="Hired" {% if app.status=='Hired' %}selected{% endif %}>Hired</option>
+                                                    {% if app.status == 'Interview Scheduled' or app.status == 'Hired' %}
+                                                        <option value="Hired" {% if app.status=='Hired' %}selected{% endif %}>Hired</option>
+                                                    {% endif %}
                                                     <option value="Rejected" {% if app.status=='Rejected' %}selected{% endif %}>Rejected</option>
                                                 </select>
                                             </form>

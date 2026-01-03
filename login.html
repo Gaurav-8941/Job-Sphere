@@ -51,34 +51,40 @@
                         <div id="login-message" class="alert alert-danger d-none" role="alert"></div>
 
                         <!-- Login Form -->
+
                         <form id="login-form">
-                            <div class="mb-4">
-                                <label for="email" class="form-label fw-semibold">Email or Username</label>
-                                <div class="input-group">
-                                    <span class="input-group-text bg-light border-end-0">
-                                        <i class="bi bi-person text-muted"></i>
-                                    </span>
-                                    <input type="text" id="email" name="email" 
-                                           class="form-control border-start-0" 
-                                           placeholder="Enter your email or username" required>
+                            <div id="login-fields">
+                                <div class="mb-4">
+                                    <label for="email" class="form-label fw-semibold">Email or Username</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light border-end-0">
+                                            <i class="bi bi-person text-muted"></i>
+                                        </span>
+                                        <input type="text" id="email" name="email" 
+                                               class="form-control border-start-0" 
+                                               placeholder="Enter your email or username" required>
+                                    </div>
+                                </div>
+
+                                <div class="mb-4">
+                                    <label for="password" class="form-label fw-semibold">Password</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light border-end-0">
+                                            <i class="bi bi-lock text-muted"></i>
+                                        </span>
+                                        <input type="password" id="password" name="password"
+                                               class="form-control border-start-0" 
+                                               placeholder="Enter your password" required>
+                                    </div>
                                 </div>
                             </div>
-
-                            <div class="mb-4">
-                                <label for="password" class="form-label fw-semibold">Password</label>
-                                <div class="input-group">
-                                    <span class="input-group-text bg-light border-end-0">
-                                        <i class="bi bi-lock text-muted"></i>
-                                    </span>
-                                    <input type="password" id="password" name="password"
-                                           class="form-control border-start-0" 
-                                           placeholder="Enter your password" required>
-                                </div>
+                            <div id="otp-section" class="mb-4 d-none">
+                                <label for="otp" class="form-label fw-semibold">Enter OTP</label>
+                                <input type="text" id="otp" name="otp" class="form-control" placeholder="Enter the OTP sent to your email" maxlength="6" autocomplete="one-time-code">
                             </div>
-
                             <div class="d-grid mb-4">
-                                <button type="submit" class="btn btn-primary btn-lg py-3 fw-bold">
-                                    <i class="bi bi-box-arrow-in-right me-2"></i>Sign In
+                                <button type="submit" class="btn btn-primary btn-lg py-3 fw-bold" id="login-btn">
+                                    <i class="bi bi-box-arrow-in-right me-2"></i><span id="login-btn-text">Sign In</span>
                                 </button>
                             </div>
 
@@ -93,9 +99,13 @@
                             <!-- Alternative Actions -->
                             <div class="text-center">
                                 <p class="text-muted mb-3">Don't have an account?</p>
-                                <a href="{{ url_for('register_page') }}" 
+                                <a href="/register-type" 
                                    class="btn btn-outline-primary px-4 py-2 rounded-pill">
                                     <i class="bi bi-person-plus me-2"></i>Create Account
+                                </a>
+                                <hr class="my-3">
+                                <a href="/manual-verification" class="btn btn-outline-secondary px-4 py-2 rounded-pill mt-2">
+                                    <i class="bi bi-shield-lock me-2"></i>Owner Login
                                 </a>
                             </div>
                         </form>
@@ -119,37 +129,87 @@
     
     <!-- Keep your existing login JavaScript -->
     <script>
-        document.getElementById('login-form').addEventListener('submit', async function(e){
+        const loginForm = document.getElementById('login-form');
+        const loginFields = document.getElementById('login-fields');
+        const otpSection = document.getElementById('otp-section');
+        const loginBtn = document.getElementById('login-btn');
+        const loginBtnText = document.getElementById('login-btn-text');
+        const messageDiv = document.getElementById('login-message');
+        let awaitingOtp = false;
+
+        loginForm.addEventListener('submit', async function(e){
             e.preventDefault();
-            
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            const messageDiv = document.getElementById('login-message');
-            
-            // Clear previous messages
             messageDiv.classList.add('d-none');
             messageDiv.textContent = '';
 
-            try {
-                const res = await fetch('{{ url_for("login") }}', {
-                    method: 'POST',
-                    headers: {'Content-Type':'application/json'},
-                    body: JSON.stringify({email: email, password: password})
-                });
-                
-                const result = await res.json();
-                
-                if (res.ok && result.redirect) {
-                    window.location.href = result.redirect;
-                } else {
-                    const errorMessage = result.error || 'Login failed. Please check your credentials.';
-                    messageDiv.textContent = errorMessage;
+            if (!awaitingOtp) {
+                // Step 1: Email/password
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+                loginBtn.disabled = true;
+                loginBtnText.textContent = 'Sending OTP...';
+                try {
+                    const res = await fetch('{{ url_for("login") }}', {
+                        method: 'POST',
+                        headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify({email: email, password: password})
+                    });
+                    const result = await res.json();
+                    if (res.ok && result.otp_required) {
+                        // Show OTP input
+                        loginFields.classList.add('d-none');
+                        otpSection.classList.remove('d-none');
+                        loginBtnText.textContent = 'Verify OTP';
+                        loginBtn.disabled = false;
+                        awaitingOtp = true;
+                        messageDiv.classList.remove('d-none');
+                        messageDiv.classList.remove('alert-danger');
+                        messageDiv.classList.add('alert-success');
+                        messageDiv.textContent = result.message || 'OTP sent to your email.';
+                    } else if (res.ok && result.redirect) {
+                        window.location.href = result.redirect;
+                    } else {
+                        const errorMessage = result.error || 'Login failed. Please check your credentials.';
+                        messageDiv.textContent = errorMessage;
+                        messageDiv.classList.remove('d-none');
+                        loginBtn.disabled = false;
+                        loginBtnText.textContent = 'Sign In';
+                    }
+                } catch (error) {
+                    console.error('Login error:', error);
+                    messageDiv.textContent = 'An unexpected error occurred during login.';
                     messageDiv.classList.remove('d-none');
+                    loginBtn.disabled = false;
+                    loginBtnText.textContent = 'Sign In';
                 }
-            } catch (error) {
-                console.error('Login error:', error);
-                messageDiv.textContent = 'An unexpected error occurred during login.';
-                messageDiv.classList.remove('d-none');
+            } else {
+                // Step 2: OTP
+                const otp = document.getElementById('otp').value;
+                loginBtn.disabled = true;
+                loginBtnText.textContent = 'Verifying...';
+                try {
+                    const res = await fetch('/api/verify-otp', {
+                        method: 'POST',
+                        headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify({otp: otp})
+                    });
+                    const result = await res.json();
+                    if (res.ok && result.redirect) {
+                        window.location.href = result.redirect;
+                    } else {
+                        const errorMessage = result.error || 'OTP verification failed.';
+                        messageDiv.textContent = errorMessage;
+                        messageDiv.classList.remove('d-none');
+                        loginBtn.disabled = false;
+                        loginBtnText.textContent = 'Verify OTP';
+                    }
+                } catch (error) {
+                    console.error('OTP error:', error);
+                    messageDiv.textContent = 'An unexpected error occurred during OTP verification.';
+                    messageDiv.classList.remove('d-none');
+                    loginBtn.disabled = false;
+                    loginBtnText.textContent = 'Verify OTP';
+                }
             }
         });
     </script>
