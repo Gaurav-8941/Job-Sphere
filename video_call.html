@@ -194,16 +194,27 @@ async function startCall() {
     document.getElementById("endBtn").style.display = "inline-block";
     document.getElementById("muteMicBtn").style.display = "inline-block";
     document.getElementById("muteVideoBtn").style.display = "inline-block";
+// fetch the ICE server configuration from Flask backend
+let iceServers = [];
+try {
+    const response = await fetch('/api/get-ice-servers');
+    iceServers = await response.json();
+} catch (error) {
+    console.warn('Could not fetch custom ICE servers, using public STUN fallback.', error);
+    // Fallback to a public STUN server if your endpoint fails
+    iceServers = [ { urls: 'stun:stun.l.google.com:19302' } ];
+}
 
-    peerConnection = new RTCPeerConnection({
-        iceServers: [
-            { urls: "stun:stun.l.google.com:19302" },
-            { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" }
-        ]
-    });
+// 2. Create the peer connection with the fetched configuration
+const configuration = {
+    iceServers: iceServers
+};
+peerConnection = new RTCPeerConnection(configuration); // <-- CORRECT: Assign to 'peerConnection'
 
-    // Debug ICE connection state
-    peerConnection.oniceconnectionstatechange = () => {
+console.log('PeerConnection created with config:', configuration);
+
+// Debug ICE connection state
+peerConnection.oniceconnectionstatechange = () => {
         console.log("ICE connection state:", peerConnection.iceConnectionState);
         if (peerConnection.iceConnectionState === "connected") {
             statusDiv.textContent = "Connected ✔";

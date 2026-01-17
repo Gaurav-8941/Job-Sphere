@@ -199,13 +199,24 @@ async function joinCall() {
     document.getElementById("muteMicBtn").style.display = "inline-block";
     document.getElementById("muteVideoBtn").style.display = "inline-block";
 
-    peerConnection = new RTCPeerConnection({
-        iceServers: [
-            { urls: "stun:stun.l.google.com:19302" },
-            // Free public TURN server for demo/testing (replace with your own for production)
-            { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" }
-        ]
-    });
+    // 1. First, fetch the ICE server configuration from YOUR Flask backend
+let iceServers = [];
+try {
+    const response = await fetch('/api/get-ice-servers');
+    iceServers = await response.json();
+} catch (error) {
+    console.warn('Could not fetch custom ICE servers, using public STUN fallback.', error);
+    // Fallback to a public STUN server if your endpoint fails
+    iceServers = [ { urls: 'stun:stun.l.google.com:19302' } ];
+}
+
+// 2. Create the peer connection with the fetched configuration
+const configuration = {
+    iceServers: iceServers
+};
+const pc = new RTCPeerConnection(configuration);
+
+console.log('PeerConnection created with config:', configuration); // For debugging
 
     // Debug ICE connection state
     peerConnection.oniceconnectionstatechange = () => {
@@ -213,8 +224,13 @@ async function joinCall() {
         if (peerConnection.iceConnectionState === "connected") {
             statusDiv.textContent = "Connected ✔";
         }
-        if (peerConnection.iceConnectionState === "failed" || peerConnection.iceConnectionState === "disconnected") {
-            statusDiv.textContent = "Connection failed/disconnected.";
+        if (peerConnection.iceConnectionState === "failed") {
+            statusDiv.textContent = "Connection failed.";
+            statusDiv.style.color = "#f87171";
+            
+        }
+        if (peerConnection.iceConnectionState === "disconnected") {
+            statusDiv.textContent = "Disconnected.";
         }
     };
     peerConnection.onsignalingstatechange = () => {

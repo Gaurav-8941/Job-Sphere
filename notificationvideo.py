@@ -6,7 +6,7 @@ def send_video_email(receiver_emailnotify):
         sender_email = "fycopractice@gmail.com"
         sender_password = "hqxf dpdw tjpj xtqu"
         subject = "Video Call Job Sphere"
-        body = f"Hr is contacting you for video call. Please check your profile page"
+        body = f"video call. Please check your profile page"
         em = EmailMessage()
         em['From'] = sender_email
         em['To'] = receiver_emailnotify

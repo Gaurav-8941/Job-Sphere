@@ -11,6 +11,9 @@ import time
 import emailsent
 import towstepverification
 import notificationvideo  
+import windowsnotification
+import secrets
+
 # Flask paths
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 TEMPLATES_DIR = os.path.join(BASE_DIR, 'templates')
@@ -31,7 +34,7 @@ user_sockets = {}
 pending_offers = {}
 pending_answers = {}
 pending_ice = {}
-pending_ice_hr = {}   # <-- add this line
+pending_ice_hr = {}  
 
 # Uploads
 app.config['UPLOAD_FOLDER'] = os.path.join(STATIC_DIR, 'uploads')
@@ -262,6 +265,26 @@ def verify_otp():
     else:
         return jsonify({"error": "Unknown login type."}), 400
 
+# === Add this new route to app.py ===
+@app.route('/api/get-ice-servers')
+def get_ice_servers():
+    """Securely provide STUN/TURN server credentials."""
+    # Optional: Protect the endpoint. Basic example:
+    # if not session.get('user_id') and not session.get('hr_id'):
+    #     return jsonify({'error': 'Unauthorized'}), 403
+
+    ice_servers = [
+        # Public STUN servers - Good for testing
+        {"urls": "stun:stun.l.google.com:19302"},
+        {"urls": "stun:stun1.l.google.com:19302"},
+        # TODO: Add your production TURN servers here
+        # {
+        #     "urls": "turn:your.turn.server:3478",
+        #     "username": "username_from_env_var",
+        #     "credential": "password_from_env_var"
+        # },
+    ]
+    return jsonify(ice_servers)
 
 @app.route('/apply', methods=['POST'])
 def apply_job():
@@ -961,6 +984,8 @@ def video_call(app_id):
         try:
             notificationvideo.send_video_email(user_email)
             print(f"Video call notification sent to {user_email}")
+            windowsnotification.notify_video_call("Video Call", f"A video call has been initiated. Check your profile page.")
+            print("Desktop notification sent.")
         except Exception as e:
             print(f"Failed to send notification email: {e}")
     
@@ -969,6 +994,16 @@ def video_call(app_id):
 
 @app.route("/video/user/<int:app_id>")
 def video_call_user(app_id):
+    app_data=fetch_one("SELECT a.email, a.hr_id, h.email as hr_email FROM applications a JOIN hr h ON a.hr_id=h.id WHERE a.id=%s",(app_id,))
+    if app_data:
+        hr_email=app_data['hr_email']
+        try:
+            notificationvideo.send_video_email(hr_email)
+            print(f"Video call notification sent to HR: {hr_email}")
+            windowsnotification.notify_video_call_hr("Video Call", f"Candidate has joined the video call. Check your dashboard.")
+            print("Desktop notification sent to HR.")
+        except Exception as e:
+            print(f"Failed to send notification email to HR: {e}")
     return render_template("video_call_user.html", app_id=app_id)
 
 # --- WebSocket Keepalive Helper ---
@@ -1134,7 +1169,6 @@ def ws_user(ws, app_id):
 
 
 # Manual verifier login and OTP
-import secrets
 
 @app.route('/manual-verification', methods=['GET', 'POST'])
 def manual_verifier_login():
