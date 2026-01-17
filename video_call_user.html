@@ -214,12 +214,12 @@ try {
 const configuration = {
     iceServers: iceServers
 };
-const pc = new RTCPeerConnection(configuration);
+peerConnection = new RTCPeerConnection(configuration); // <-- CORRECT: Assign to 'peerConnection'
 
-console.log('PeerConnection created with config:', configuration); // For debugging
+console.log('PeerConnection created with config:', configuration);
 
-    // Debug ICE connection state
-    peerConnection.oniceconnectionstatechange = () => {
+// Debug ICE connection state
+peerConnection.oniceconnectionstatechange = () => {
         console.log("ICE connection state:", peerConnection.iceConnectionState);
         if (peerConnection.iceConnectionState === "connected") {
             statusDiv.textContent = "Connected ✔";
